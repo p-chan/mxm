@@ -3,6 +3,7 @@
 mod apply;
 mod config;
 mod controls;
+mod daemon;
 mod device;
 mod discover;
 mod features;
@@ -128,6 +129,12 @@ enum Command {
         #[arg(long)]
         config: Option<std::path::PathBuf>,
     },
+    /// Stay running and write the config file to devices whenever they connect
+    Daemon {
+        /// Config file (default: ~/.config/mxm/config.toml)
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -188,6 +195,10 @@ impl App {
                 let path = config.map_or_else(config::default_path, Ok)?;
                 return self.apply(&path);
             }
+            Command::Daemon { config } => {
+                let path = config.map_or_else(config::default_path, Ok)?;
+                return daemon::run(&mut self.api, &path, self.trace);
+            }
             _ => {}
         }
         if let Command::List = command {
@@ -203,7 +214,7 @@ impl App {
         let mut d = self.open()?;
         let d = &mut d;
         match command {
-            Command::List | Command::Apply { .. } => unreachable!(),
+            Command::List | Command::Apply { .. } | Command::Daemon { .. } => unreachable!(),
             Command::Info => {
                 let name = device::get_name(d)?;
                 let info = device::get_device_info(d)?;
@@ -763,8 +774,8 @@ fn is_broken_pipe(e: &anyhow::Error) -> bool {
 fn main() {
     let cli = Cli::parse();
     let result = HidApi::new().map_err(anyhow::Error::from).and_then(|api| {
-        // macOS opens devices exclusively by default, which would lock out Logi Options+ and other
-        // `mxm` commands from each other
+        // macOS opens devices exclusively by default, which would lock out Logi Options+, other
+        // `mxm` commands and `mxm daemon` from each other
         #[cfg(target_os = "macos")]
         api.set_open_exclusive(false);
         App {

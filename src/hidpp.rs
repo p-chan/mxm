@@ -23,7 +23,9 @@ pub const REPORT_LONG: u8 = 0x11;
 pub const DIRECT_INDEX: u8 = 0xff;
 const LONG_LENGTH: usize = 20;
 /// A distinct software ID so responses are not confused with those of other clients such as Logi Options+
-const SW_ID: u8 = 0x0b;
+pub const SW_ID: u8 = 0x0b;
+/// Software ID of `mxm daemon`, so that it and the CLI can talk to a device at the same time
+pub const DAEMON_SW_ID: u8 = 0x0c;
 
 /// Parameter part of a response
 pub type Params = [u8; 16];
@@ -130,6 +132,7 @@ pub struct Hidpp {
     feature_cache: HashMap<u16, u8>,
     pending: VecDeque<Vec<u8>>,
     pub trace: bool,
+    pub sw_id: u8,
 }
 
 impl Hidpp {
@@ -140,6 +143,7 @@ impl Hidpp {
             feature_cache: HashMap::new(),
             pending: VecDeque::new(),
             trace: false,
+            sw_id: SW_ID,
         }
     }
 
@@ -190,7 +194,7 @@ impl Hidpp {
         msg[0] = REPORT_LONG;
         msg[1] = self.device_index;
         msg[2] = feature_index;
-        msg[3] = ((function & 0x0f) << 4) | SW_ID;
+        msg[3] = ((function & 0x0f) << 4) | (self.sw_id & 0x0f);
         let len = params.len().min(LONG_LENGTH - 4);
         msg[4..4 + len].copy_from_slice(&params[..len]);
         self.write(&msg)?;
@@ -237,6 +241,55 @@ impl Hidpp {
             Err(HidppError::Protocol { .. } | HidppError::Timeout(_)) => Ok(None),
             Err(e) => Err(e),
         }
+    }
+
+    /// Reads a 3-byte HID++ 1.0 register (e.g. of a receiver)
+    pub fn read_register(&mut self, register: u8) -> Result<[u8; 3]> {
+        let r = self.register_request(0x81, register, [0; 3])?;
+        Ok([r[4], r[5], r[6]])
+    }
+
+    /// Writes a 3-byte HID++ 1.0 register (e.g. of a receiver)
+    pub fn write_register(&mut self, register: u8, value: [u8; 3]) -> Result<()> {
+        self.register_request(0x80, register, value)?;
+        Ok(())
+    }
+
+    /// HID++ 1.0 short register request: [0x10, idx, 0x80 (set) / 0x81 (get), register, value...]
+    fn register_request(&mut self, sub_id: u8, register: u8, value: [u8; 3]) -> Result<Vec<u8>> {
+        let msg = [
+            REPORT_SHORT,
+            self.device_index,
+            sub_id,
+            register,
+            value[0],
+            value[1],
+            value[2],
+        ];
+        self.write(&msg)?;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+            let Some(r) = self.read(left.min(Duration::from_millis(200)))? else {
+                continue;
+            };
+            let at = |i: usize| r.get(i).copied().unwrap_or(0);
+            if at(2) == 0x8f && at(3) == sub_id && at(4) == register {
+                let code = at(5);
+                return Err(HidppError::Protocol {
+                    message: format!(
+                        "HID++ 1.0 error {} (0x{code:02x}) (register 0x{register:02x})",
+                        hidpp10_error(code)
+                    ),
+                });
+            }
+            if at(2) == sub_id && at(3) == register && r.len() >= 7 {
+                return Ok(r);
+            }
+        }
+        Err(HidppError::Timeout(format!(
+            "No response to register 0x{register:02x} (index 0x{:02x})",
+            self.device_index
+        )))
     }
 
     /// Looks up the feature index of a feature ID, or None if unsupported
