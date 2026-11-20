@@ -11,10 +11,18 @@ The results of the protocol analysis are documented in [PROTOCOL.md](PROTOCOL.md
 ## Requirements
 
 - macOS (Linux and Windows should work wherever [hidapi](https://crates.io/crates/hidapi) does, but are untested)
-- Rust (build time only)
+- Rust (only when building from source)
 - An MX Master mouse connected via Bluetooth or a Logi Bolt receiver (tested on the MX Master 4 and MX Master 3S; features a model lacks, such as haptic feedback on the MX Master 3S, report an error)
 
 ## Installation
+
+Install the prebuilt binary for macOS (Apple Silicon or Intel) from [GitHub Releases](https://github.com/p-chan/mxm/releases):
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/p-chan/mxm/releases/latest/download/mxm-installer.sh | sh   # installs to ~/.local/bin/mxm
+```
+
+Run the same command again to update. To build from source instead:
 
 ```sh
 cargo install --path .   # installs to ~/.cargo/bin/mxm
@@ -112,7 +120,7 @@ mxm daemon                  # keep running and write the config on every connect
 
 ### Starting at login (macOS)
 
-Save the following as `~/Library/LaunchAgents/io.github.p-chan.mxm.plist`, replacing `YOU` with your user name.
+Save the following as `~/Library/LaunchAgents/io.github.p-chan.mxm.plist`, replacing `YOU` with your user name (and the path with `~/.cargo/bin/mxm` if you built it from source).
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -123,7 +131,7 @@ Save the following as `~/Library/LaunchAgents/io.github.p-chan.mxm.plist`, repla
   <string>io.github.p-chan.mxm</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/YOU/.cargo/bin/mxm</string>
+    <string>/Users/YOU/.local/bin/mxm</string>
     <string>daemon</string>
   </array>
   <key>RunAtLoad</key>
@@ -142,7 +150,7 @@ tail -f /tmp/mxm.log                                                            
 launchctl bootout gui/$(id -u)/io.github.p-chan.mxm                                  # stop
 ```
 
-When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). Add `~/.cargo/bin/mxm` in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it.
+When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). Add `~/.local/bin/mxm` (or `~/.cargo/bin/mxm` if you built it from source) in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it.
 
 ## Notes
 
