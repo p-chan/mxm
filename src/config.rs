@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
 
+use crate::controls::parse_control;
 use crate::device::{Threshold, WheelMode};
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
@@ -160,7 +161,13 @@ impl Config {
 impl Settings {
     /// `over` wins field by field; tables are merged by their keys
     fn merged(&self, over: &Settings) -> Settings {
+        // Match buttons by control, so that `back` and `Back` (or `thumb` and `gesture`) are the same button
+        let same = |a: &str, b: &str| match (parse_control(a), parse_control(b)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => a == b,
+        };
         let mut buttons = self.buttons.clone();
+        buttons.retain(|k, _| !over.buttons.keys().any(|o| same(k, o)));
         buttons.extend(over.buttons.clone());
         Settings {
             dpi: over.dpi.or(self.dpi),
@@ -243,6 +250,19 @@ buttons = { forward = "back" }
         assert_eq!(s.wheel.unwrap().hires, Some(true));
         assert_eq!(s.buttons["back"], "middle");
         assert_eq!(s.buttons["forward"], "back");
+    }
+
+    #[test]
+    fn serial_buttons_override_other_spellings_of_the_same_button() {
+        let c = parse(
+            "[device.\"MX Master 4\".buttons]\nBack = \"middle\"\nthumb = \"middle\"\n\
+             [serial.\"S\".buttons]\nback = \"forward\"\ngesture = \"default\"",
+        )
+        .unwrap();
+        let s = c.resolve("MX Master 4", Some("S")).unwrap();
+        assert_eq!(s.buttons.len(), 2);
+        assert_eq!(s.buttons["back"], "forward");
+        assert_eq!(s.buttons["gesture"], "default");
     }
 
     #[test]
