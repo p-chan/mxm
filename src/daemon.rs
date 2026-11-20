@@ -7,7 +7,7 @@
 //! - A receiver reports that a device in one of its slots connected (HID++ 1.0 notification 0x41).
 //! - A device asks to be reconfigured (WirelessDeviceStatus 0x1d4b notification), e.g. after power-on.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -51,6 +51,8 @@ struct Daemon<'a> {
     watched: HashMap<CString, Interface>,
     /// Interfaces that could not be opened; logged once
     failed: HashMap<CString, String>,
+    /// Receivers whose connection notifications could not be enabled yet; retried on every scan
+    notifications_pending: HashSet<CString>,
     /// Feature index of WirelessDeviceStatus per device, to recognize its notifications
     status_index: HashMap<Slot, u8>,
     last_apply: HashMap<Slot, Instant>,
@@ -69,6 +71,7 @@ pub fn run(api: &mut HidApi, config_path: &Path, trace: bool) -> Result<()> {
         tx,
         watched: HashMap::new(),
         failed: HashMap::new(),
+        notifications_pending: HashSet::new(),
         status_index: HashMap::new(),
         last_apply: HashMap::new(),
     };
@@ -90,6 +93,7 @@ impl Daemon<'_> {
                     if let Some(iface) = self.watched.remove(&path) {
                         log(&format!("{} disconnected", iface.hid_product));
                     }
+                    self.notifications_pending.remove(&path);
                     self.status_index.retain(|(p, _), _| *p != path);
                     self.last_apply.retain(|(p, _), _| *p != path);
                 }
@@ -106,6 +110,13 @@ impl Daemon<'_> {
         if let Err(e) = self.api.refresh_devices() {
             log(&format!("Failed to enumerate HID devices: {e}"));
             return;
+        }
+        for path in self.notifications_pending.clone() {
+            if let Some(iface) = self.watched.get(&path).cloned()
+                && self.enable_connection_notifications(&iface)
+            {
+                self.notifications_pending.remove(&path);
+            }
         }
         for iface in list_interfaces(self.api) {
             if self.watched.contains_key(&iface.path) {
@@ -130,7 +141,9 @@ impl Daemon<'_> {
             ));
             self.watched.insert(iface.path.clone(), iface.clone());
             if iface.transport == Transport::Receiver {
-                self.enable_connection_notifications(&iface);
+                if !self.enable_connection_notifications(&iface) {
+                    self.notifications_pending.insert(iface.path.clone());
+                }
                 for index in 1..=6 {
                     self.apply(&iface.path, index, false);
                 }
@@ -155,8 +168,8 @@ impl Daemon<'_> {
         }
     }
 
-    /// Makes the receiver report device connections, keeping the flags other software set
-    fn enable_connection_notifications(&self, iface: &Interface) {
+    /// Makes the receiver report device connections, keeping the flags other software set. Returns false on failure
+    fn enable_connection_notifications(&self, iface: &Interface) -> bool {
         let result = (|| -> Result<()> {
             let mut d = self.open(&iface.path, DIRECT_INDEX)?;
             let mut flags = d.read_register(REGISTER_NOTIFICATIONS)?;
@@ -166,12 +179,13 @@ impl Daemon<'_> {
             }
             Ok(())
         })();
-        if let Err(e) = result {
+        if let Err(e) = &result {
             log(&format!(
                 "Cannot enable connection notifications on {}: {e}",
                 iface.hid_product
             ));
         }
+        result.is_ok()
     }
 
     fn open(&self, path: &CString, index: u8) -> Result<Hidpp> {
@@ -215,13 +229,18 @@ impl Daemon<'_> {
             }
             return;
         }
-        self.last_apply.insert(slot.clone(), Instant::now());
         if let Ok(Some(i)) = d.feature_index(features::WIRELESS_DEVICE_STATUS) {
-            self.status_index.insert(slot, i);
+            self.status_index.insert(slot.clone(), i);
         }
 
         let name = device::get_name(&mut d).map_or_else(|_| iface.hid_product.clone(), |n| n.name);
-        let serial = device::get_device_info(&mut d).ok().and_then(|i| i.serial);
+        let serial = match device::get_device_info(&mut d) {
+            Ok(info) => info.serial,
+            Err(e) => {
+                log(&format!("{name}: cannot read the serial number: {e}"));
+                return;
+            }
+        };
         let label = match &serial {
             Some(s) => format!("{name} ({s})"),
             None => name.clone(),
@@ -239,6 +258,13 @@ impl Daemon<'_> {
         };
         let outcomes = apply::apply(&mut d, &settings);
         log(&format!("{label}: {}", apply::summarize(&outcomes)));
+        // Only a successful apply suppresses the other events of the same connection, so a failure is retried
+        if !outcomes
+            .iter()
+            .any(|o| matches!(o.status, apply::Status::Failed(_)))
+        {
+            self.last_apply.insert(slot, Instant::now());
+        }
     }
 }
 

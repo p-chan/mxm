@@ -626,10 +626,24 @@ impl App {
         for t in &targets {
             let mut d = Hidpp::new(self.api.open_path(&t.path)?, t.device_index);
             d.trace = self.trace;
-            let serial = device::get_device_info(&mut d).ok().and_then(|i| i.serial);
-            let outcomes = config
-                .resolve(&t.name, serial.as_deref())
-                .map(|s| apply::apply(&mut d, &s));
+            let (serial, outcomes) = match device::get_device_info(&mut d) {
+                Ok(info) => {
+                    let outcomes = config
+                        .resolve(&t.name, info.serial.as_deref())
+                        .map(|s| apply::apply(&mut d, &s));
+                    (info.serial, outcomes)
+                }
+                // Without the serial number, the serial sections cannot be matched; do not apply partially
+                Err(e) => (
+                    None,
+                    Some(vec![apply::Outcome {
+                        item: "serial".into(),
+                        status: apply::Status::Failed(format!(
+                            "cannot read the serial number: {e}"
+                        )),
+                    }]),
+                ),
+            };
             results.push((t, serial, outcomes));
         }
         let data: Vec<_> = results
