@@ -113,7 +113,7 @@ impl Daemon<'_> {
         }
         for path in self.notifications_pending.clone() {
             if let Some(iface) = self.watched.get(&path).cloned()
-                && self.enable_connection_notifications(&iface)
+                && self.enable_connection_notifications(&iface, false)
             {
                 self.notifications_pending.remove(&path);
             }
@@ -141,7 +141,7 @@ impl Daemon<'_> {
             ));
             self.watched.insert(iface.path.clone(), iface.clone());
             if iface.transport == Transport::Receiver {
-                if !self.enable_connection_notifications(&iface) {
+                if !self.enable_connection_notifications(&iface, true) {
                     self.notifications_pending.insert(iface.path.clone());
                 }
                 for index in 1..=6 {
@@ -168,8 +168,9 @@ impl Daemon<'_> {
         }
     }
 
-    /// Makes the receiver report device connections, keeping the flags other software set. Returns false on failure
-    fn enable_connection_notifications(&self, iface: &Interface) -> bool {
+    /// Makes the receiver report device connections, keeping the flags other software set.
+    /// Returns false on failure, which is logged only when `log_error` is set (retries stay quiet)
+    fn enable_connection_notifications(&self, iface: &Interface, log_error: bool) -> bool {
         let result = (|| -> Result<()> {
             let mut d = self.open(&iface.path, DIRECT_INDEX)?;
             let mut flags = d.read_register(REGISTER_NOTIFICATIONS)?;
@@ -179,7 +180,9 @@ impl Daemon<'_> {
             }
             Ok(())
         })();
-        if let Err(e) = &result {
+        if let Err(e) = &result
+            && log_error
+        {
             log(&format!(
                 "Cannot enable connection notifications on {}: {e}",
                 iface.hid_product

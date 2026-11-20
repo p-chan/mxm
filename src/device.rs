@@ -171,7 +171,7 @@ pub fn get_device_info(d: &mut impl FeatureCall) -> Result<DeviceInfo> {
         });
     }
     let serial = if r[14] & 0x01 != 0 {
-        d.call(f::DEVICE_INFO, 2, &[]).ok().map(|s| ascii(&s[..12]))
+        Some(ascii(&d.call(f::DEVICE_INFO, 2, &[])?[..12]))
     } else {
         None
     };
