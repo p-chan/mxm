@@ -1,4 +1,4 @@
-# mxmaster-cli
+# mxm
 
 [English](README.md) | 日本語
 
