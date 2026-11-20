@@ -347,7 +347,7 @@ impl std::str::FromStr for Threshold {
 #[derive(Debug, Serialize, PartialEq)]
 pub struct SmartShiftDefaults {
     pub threshold: u8,
-    /// None on devices without tunable torque
+    /// None on devices without torque (SmartShift 0x2110)
     pub torque: Option<u8>,
 }
 
@@ -356,7 +356,7 @@ pub struct SmartShiftDefaults {
 pub struct SmartShift {
     pub mode: WheelMode,
     pub threshold: Threshold,
-    /// None on devices without tunable torque
+    /// None on devices without torque (SmartShift 0x2110)
     pub torque: Option<u8>,
     pub defaults: SmartShiftDefaults,
     pub tunable_torque: bool,
@@ -387,10 +387,10 @@ pub fn get_smartshift(d: &mut impl FeatureCall) -> Result<SmartShift> {
         return Ok(SmartShift {
             mode: parse_mode(r[0]),
             threshold: parse_threshold(r[1]),
-            torque: tunable.then_some(r[2]),
+            torque: Some(r[2]),
             defaults: SmartShiftDefaults {
                 threshold: caps[1],
-                torque: tunable.then_some(caps[2]),
+                torque: Some(caps[2]),
             },
             tunable_torque: tunable,
         });

@@ -316,6 +316,11 @@ impl App {
                         (Some(t), None) => t.to_string(),
                         _ => "not supported by this device".into(),
                     };
+                    let torque = if s.torque.is_some() && !s.tunable_torque {
+                        format!("{torque} (not tunable)")
+                    } else {
+                        torque
+                    };
                     [
                         format!("Mode:      {mode}"),
                         format!("Threshold: {threshold} (default {})", s.defaults.threshold),
