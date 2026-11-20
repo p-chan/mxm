@@ -308,7 +308,7 @@ pub fn set_dpi(d: &mut impl FeatureCall, dpi: u16, sensor: u8) -> Result<()> {
 // getRatchetControlMode: [wheelMode (1=freespin, 2=ratchet), autoDisengage (1..254, 255 = SmartShift off), torque (1..100)]
 // setRatchetControlMode: same layout; 0 means "unchanged"
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum WheelMode {
     Freespin,
@@ -889,4 +889,4 @@ pub fn decode_notification(feature_id: u16, function: u8, p: &Params) -> Option<
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

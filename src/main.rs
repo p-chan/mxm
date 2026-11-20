@@ -1,5 +1,7 @@
 //! mxm - Configuration tool for Logitech MX Master mice (HID++ 2.0)
 
+mod apply;
+mod config;
 mod controls;
 mod device;
 mod discover;
@@ -120,6 +122,12 @@ enum Command {
     },
     /// Dump all readable settings as JSON
     Dump,
+    /// Write the settings of the config file to connected devices (all of them unless --device is given)
+    Apply {
+        /// Config file (default: ~/.config/mxm/config.toml)
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -174,7 +182,14 @@ impl App {
         Ok(d)
     }
 
-    fn run(&self, command: Command) -> Result<()> {
+    fn run(&mut self, command: Command) -> Result<()> {
+        match command {
+            Command::Apply { config } => {
+                let path = config.map_or_else(config::default_path, Ok)?;
+                return self.apply(&path);
+            }
+            _ => {}
+        }
         if let Command::List = command {
             let all = discover::discover(&self.api);
             return self.print(&all, || {
@@ -188,7 +203,7 @@ impl App {
         let mut d = self.open()?;
         let d = &mut d;
         match command {
-            Command::List => unreachable!(),
+            Command::List | Command::Apply { .. } => unreachable!(),
             Command::Info => {
                 let name = device::get_name(d)?;
                 let info = device::get_device_info(d)?;
@@ -585,6 +600,57 @@ impl App {
                 thumbwheel,
             } => self.monitor(d, &divert, wheel, thumbwheel),
         }
+    }
+
+    fn apply(&self, path: &std::path::Path) -> Result<()> {
+        let config = config::load(path)?;
+        let targets = match &self.device {
+            Some(_) => vec![discover::open_target(&self.api, self.device.as_deref())?.1],
+            None => discover::discover(&self.api),
+        };
+        if targets.is_empty() {
+            bail!("No HID++ 2.0 device found");
+        }
+        let mut results = Vec::new();
+        for t in &targets {
+            let mut d = Hidpp::new(self.api.open_path(&t.path)?, t.device_index);
+            d.trace = self.trace;
+            let serial = device::get_device_info(&mut d).ok().and_then(|i| i.serial);
+            let outcomes = config
+                .resolve(&t.name, serial.as_deref())
+                .map(|s| apply::apply(&mut d, &s));
+            results.push((t, serial, outcomes));
+        }
+        let data: Vec<_> = results
+            .iter()
+            .map(|(t, serial, outcomes)| json!({ "name": t.name, "serial": serial, "results": outcomes }))
+            .collect();
+        self.print(&data, || {
+            results
+                .iter()
+                .map(|(t, serial, outcomes)| {
+                    let label = serial
+                        .as_ref()
+                        .map_or_else(|| t.name.clone(), |s| format!("{} ({s})", t.name));
+                    let summary = outcomes.as_ref().map_or_else(
+                        || "no settings in the config file".into(),
+                        |o| apply::summarize(o),
+                    );
+                    format!("{label}: {summary}")
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        })?;
+        let failed = results.iter().any(|(_, _, o)| {
+            o.as_ref().is_some_and(|o| {
+                o.iter()
+                    .any(|o| matches!(o.status, apply::Status::Failed(_)))
+            })
+        });
+        if failed {
+            bail!("Some settings could not be applied");
+        }
+        Ok(())
     }
 
     fn monitor(
