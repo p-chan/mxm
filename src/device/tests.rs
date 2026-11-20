@@ -21,9 +21,9 @@ fn s(text: &str) -> Params {
 }
 
 /// A fake device that returns recorded responses and records writes (fn >= 2) that have no recorded response
-struct Fake {
+pub(crate) struct Fake {
     recorded: HashMap<String, Params>,
-    writes: Vec<String>,
+    pub(crate) writes: Vec<String>,
 }
 
 fn key(id: u16, function: u8, params: &[u8]) -> String {
@@ -34,7 +34,7 @@ fn key(id: u16, function: u8, params: &[u8]) -> String {
 }
 
 impl Fake {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let entries: &[(u16, u8, &str, Params)] = &[
             (f::ADJUSTABLE_DPI, 1, "00", b("00 00c8 e032 1f40 0000")),
             (f::ADJUSTABLE_DPI, 2, "00", b("00 0960 03e8")),
@@ -110,11 +110,24 @@ impl Fake {
             .insert(format!("{:04x}:0:", f::SMART_SHIFT), b("01 0a 0a"));
         d
     }
+
+    /// An MX Master 3S, which has neither Haptic (0x19b0) nor ForceSensingButton (0x19c0)
+    pub(crate) fn mx_master_3s_without_haptics() -> Self {
+        let mut d = Self::mx_master_3s();
+        let haptic = format!("{:04x}:", f::HAPTIC);
+        let force = format!("{:04x}:", f::FORCE_SENSING_BUTTON);
+        d.recorded
+            .retain(|k, _| !k.starts_with(&haptic) && !k.starts_with(&force));
+        d
+    }
 }
 
 impl FeatureCall for Fake {
     fn call(&mut self, feature_id: u16, function: u8, params: &[u8]) -> hidpp::Result<Params> {
         let k = key(feature_id, function, params);
+        if !self.has(feature_id) {
+            return Err(hidpp::HidppError::Unsupported(feature_id));
+        }
         if let Some(r) = self.recorded.get(&k) {
             return Ok(*r);
         }

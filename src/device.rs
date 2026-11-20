@@ -170,11 +170,7 @@ pub fn get_device_info(d: &mut impl FeatureCall) -> Result<DeviceInfo> {
             pid: format!("{:04x}", u16_at(&fw, 9)),
         });
     }
-    let serial = if r[14] & 0x01 != 0 {
-        d.call(f::DEVICE_INFO, 2, &[]).ok().map(|s| ascii(&s[..12]))
-    } else {
-        None
-    };
+    let serial = get_serial(d)?;
     Ok(DeviceInfo {
         unit_id: crate::hidpp::hex(&r[1..5]).replace(' ', ""),
         transports,
@@ -182,6 +178,15 @@ pub fn get_device_info(d: &mut impl FeatureCall) -> Result<DeviceInfo> {
         serial,
         firmware,
     })
+}
+
+/// The serial number, or None if the device has none. Needs fewer requests than `get_device_info`
+pub fn get_serial(d: &mut impl FeatureCall) -> Result<Option<String>> {
+    let r = d.call(f::DEVICE_INFO, 0, &[])?;
+    if r[14] & 0x01 == 0 {
+        return Ok(None);
+    }
+    Ok(Some(ascii(&d.call(f::DEVICE_INFO, 2, &[])?[..12])))
 }
 
 // ---- UnifiedBattery (0x1004) ----
@@ -308,7 +313,7 @@ pub fn set_dpi(d: &mut impl FeatureCall, dpi: u16, sensor: u8) -> Result<()> {
 // getRatchetControlMode: [wheelMode (1=freespin, 2=ratchet), autoDisengage (1..254, 255 = SmartShift off), torque (1..100)]
 // setRatchetControlMode: same layout; 0 means "unchanged"
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum WheelMode {
     Freespin,
@@ -889,4 +894,4 @@ pub fn decode_notification(feature_id: u16, function: u8, p: &Params) -> Option<
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
