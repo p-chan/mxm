@@ -88,3 +88,7 @@ Add `--json` to get JSON output from any command.
 ## Acknowledgements
 
 Logitech does not publish the HID++ 2.0 specification. The feature names, message layouts and device behavior used by this tool were cross-checked against [Solaar](https://github.com/pwr-Solaar/Solaar), a manager for Logitech devices (mainly for Linux, with limited macOS support), and verified on a real MX Master 4 and MX Master 3S where possible (see [PROTOCOL.md](PROTOCOL.md) for what is unverified). No code from Solaar is included in this project.
+
+## License
+
+[MIT](LICENSE)
