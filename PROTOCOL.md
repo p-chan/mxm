@@ -41,7 +41,7 @@ Example: reading the DPI
 
 ## Feature table
 
-Output of `mxm features`. Feature indexes differ between models and firmware versions, so the tool always looks them up by feature ID.
+Output of `mxm features`. Names follow Solaar; features it does not name are listed as Unknown. Feature indexes differ between models and firmware versions, so the tool always looks them up by feature ID.
 
 | Index | ID | Name | Notes |
 | ---: | --- | --- | --- |
@@ -66,7 +66,7 @@ Output of `mxm features`. Feature indexes differ between models and firmware ver
 | 19 | `0x2150` | ThumbWheel | |
 | 20 | `0x2201` | AdjustableDpi | |
 | 21 | `0x2251` | WheelStats | |
-| 22 | `0x00D1` | DfuControl | |
+| 22 | `0x00D1` | Unknown | |
 | 23-45 | `0x18xx`, `0x1Exx`, `0x9xxx` and others | Diagnostics / manufacturing | Flagged hidden (most are also flagged engineering) |
 
 ## Settings after a power cycle

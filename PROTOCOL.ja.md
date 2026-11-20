@@ -41,7 +41,7 @@ long report（20 bytes）を使います。
 
 ## feature テーブル
 
-`mxm features` の出力です。feature index は機種やファームウェアで変わるため、毎回 feature ID から引きます。
+`mxm features` の出力です。名前は Solaar に合わせていて、Solaar に名前がない feature は「不明」としています。feature index は機種やファームウェアで変わるため、毎回 feature ID から引きます。
 
 | index | ID | 名前 | 備考 |
 | ---: | --- | --- | --- |
@@ -66,7 +66,7 @@ long report（20 bytes）を使います。
 | 19 | `0x2150` | ThumbWheel | |
 | 20 | `0x2201` | AdjustableDpi | |
 | 21 | `0x2251` | WheelStats | |
-| 22 | `0x00D1` | DfuControl | |
+| 22 | `0x00D1` | 不明 | |
 | 23〜45 | `0x18xx`, `0x1Exx`, `0x9xxx` ほか | 診断・製造用 | hidden フラグ付き（多くは engineering フラグも付く） |
 
 ## 電源の入れ直し後の設定
