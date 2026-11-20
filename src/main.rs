@@ -697,6 +697,10 @@ fn is_broken_pipe(e: &anyhow::Error) -> bool {
 fn main() {
     let cli = Cli::parse();
     let result = HidApi::new().map_err(anyhow::Error::from).and_then(|api| {
+        // macOS opens devices exclusively by default, which would lock out Logi Options+ and other
+        // `mxm` commands from each other
+        #[cfg(target_os = "macos")]
+        api.set_open_exclusive(false);
         App {
             api,
             json: cli.json,
