@@ -10,6 +10,7 @@ pub const HOSTS_INFO: u16 = 0x1815;
 pub const HAPTIC: u16 = 0x19b0;
 pub const FORCE_SENSING_BUTTON: u16 = 0x19c0;
 pub const REPROG_CONTROLS_V4: u16 = 0x1b04;
+pub const SMART_SHIFT: u16 = 0x2110;
 pub const SMART_SHIFT_ENHANCED: u16 = 0x2111;
 pub const HIRES_WHEEL: u16 = 0x2121;
 pub const THUMB_WHEEL: u16 = 0x2150;
@@ -38,6 +39,7 @@ pub fn feature_name(id: u16) -> &'static str {
         0x1b04 => "ReprogControlsV4",
         0x1d4b => "WirelessDeviceStatus",
         0x1e00 => "EnableHiddenFeatures",
+        0x2110 => "SmartShift",
         0x2111 => "SmartShiftEnhanced",
         0x2121 => "HiResWheel",
         0x2150 => "ThumbWheel",

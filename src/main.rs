@@ -311,19 +311,15 @@ impl App {
                         WheelMode::Freespin => "freespin",
                         WheelMode::Ratchet => "ratchet",
                     };
+                    let torque = match (s.torque, s.defaults.torque) {
+                        (Some(t), Some(def)) => format!("{t} (default {def})"),
+                        (Some(t), None) => t.to_string(),
+                        _ => "not supported by this device".into(),
+                    };
                     [
                         format!("Mode:      {mode}"),
                         format!("Threshold: {threshold} (default {})", s.defaults.threshold),
-                        format!(
-                            "Torque:    {}{} (default {})",
-                            s.torque,
-                            if s.tunable_torque {
-                                ""
-                            } else {
-                                " (not tunable)"
-                            },
-                            s.defaults.torque
-                        ),
+                        format!("Torque:    {torque}"),
                     ]
                     .join("\n")
                 })
