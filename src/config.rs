@@ -287,6 +287,8 @@ buttons = { forward = "back" }
             include_str!("../README.md"),
             include_str!("../README.ja.md"),
         ] {
+            // Git on Windows may check the files out with CRLF line endings
+            let readme = readme.replace("\r\n", "\n");
             let block = readme
                 .split("```toml\n")
                 .nth(1)
