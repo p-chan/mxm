@@ -88,3 +88,7 @@ mxm dump                                # 読み取れる設定をすべて JSON
 ## 謝辞
 
 Logitech は HID++ 2.0 の仕様書を公開していません。このツールで使っている feature の名前、メッセージの形式、デバイスの動作は、Logitech デバイスの管理ツール（主に Linux 向けで、macOS も一部対応） [Solaar](https://github.com/pwr-Solaar/Solaar) と照らし合わせ、可能な範囲で実機の MX Master 4 と MX Master 3S で確認しました（未検証の内容は [PROTOCOL.ja.md](PROTOCOL.ja.md) に記載）。Solaar のコードは、このプロジェクトに含まれていません。
+
+## ライセンス
+
+[MIT](LICENSE)
