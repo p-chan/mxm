@@ -6,7 +6,9 @@ use anyhow::{Result, anyhow, bail};
 use hidapi::HidApi;
 use serde::Serialize;
 
-use crate::device::get_name;
+use crate::device::{get_name, u16_at};
+use crate::features;
+use crate::hidpp::FeatureCall;
 use crate::hidpp::{DIRECT_INDEX, Hidpp, Transport, list_interfaces};
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,17 +53,34 @@ pub fn discover(api: &HidApi) -> Vec<FoundDevice> {
             }
             // Fall back to the HID product name for devices without DeviceName
             let name = get_name(&mut d).map_or_else(|_| iface.hid_product.clone(), |n| n.name);
+            // Behind a receiver, the HID product ID is the receiver's; use the device's own model ID instead
+            let product_id = model_id(&mut d).unwrap_or(iface.product_id);
             found.push(FoundDevice {
                 path: iface.path.clone(),
                 device_index: index,
-                product_id: iface.product_id,
+                product_id,
                 transport: iface.transport,
                 name,
                 protocol: format!("{major}.{minor}"),
             });
         }
     }
+    // HID enumeration order can change between runs; sort so that `--device <n>` stays stable
+    found.sort_by(|a, b| {
+        (a.name.as_str(), a.transport as u8, a.device_index).cmp(&(
+            b.name.as_str(),
+            b.transport as u8,
+            b.device_index,
+        ))
+    });
     found
+}
+
+/// The first model ID reported by DeviceInfo (0x0003)
+fn model_id(d: &mut Hidpp) -> Option<u16> {
+    let r = d.call(features::DEVICE_INFO, 0, &[]).ok()?;
+    let id = u16_at(&r, 7);
+    (id != 0).then_some(id)
 }
 
 /// Opens the target device. `selector` is a number from `list` or part of a name; without it, an MX Master mouse is preferred
