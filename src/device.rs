@@ -170,11 +170,7 @@ pub fn get_device_info(d: &mut impl FeatureCall) -> Result<DeviceInfo> {
             pid: format!("{:04x}", u16_at(&fw, 9)),
         });
     }
-    let serial = if r[14] & 0x01 != 0 {
-        Some(ascii(&d.call(f::DEVICE_INFO, 2, &[])?[..12]))
-    } else {
-        None
-    };
+    let serial = get_serial(d)?;
     Ok(DeviceInfo {
         unit_id: crate::hidpp::hex(&r[1..5]).replace(' ', ""),
         transports,
@@ -182,6 +178,15 @@ pub fn get_device_info(d: &mut impl FeatureCall) -> Result<DeviceInfo> {
         serial,
         firmware,
     })
+}
+
+/// The serial number, or None if the device has none. Needs fewer requests than `get_device_info`
+pub fn get_serial(d: &mut impl FeatureCall) -> Result<Option<String>> {
+    let r = d.call(f::DEVICE_INFO, 0, &[])?;
+    if r[14] & 0x01 == 0 {
+        return Ok(None);
+    }
+    Ok(Some(ascii(&d.call(f::DEVICE_INFO, 2, &[])?[..12])))
 }
 
 // ---- UnifiedBattery (0x1004) ----

@@ -626,12 +626,12 @@ impl App {
         for t in &targets {
             let mut d = Hidpp::new(self.api.open_path(&t.path)?, t.device_index);
             d.trace = self.trace;
-            let (serial, outcomes) = match device::get_device_info(&mut d) {
-                Ok(info) => {
+            let (serial, outcomes) = match device::get_serial(&mut d) {
+                Ok(serial) => {
                     let outcomes = config
-                        .resolve(&t.name, info.serial.as_deref())
+                        .resolve(&t.name, serial.as_deref())
                         .map(|s| apply::apply(&mut d, &s));
-                    (info.serial, outcomes)
+                    (serial, outcomes)
                 }
                 // Without the serial number, the serial sections cannot be matched; do not apply partially
                 Err(e) => (

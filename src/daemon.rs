@@ -236,39 +236,61 @@ impl Daemon<'_> {
             self.status_index.insert(slot.clone(), i);
         }
 
-        let name = device::get_name(&mut d).map_or_else(|_| iface.hid_product.clone(), |n| n.name);
-        let serial = match device::get_device_info(&mut d) {
-            Ok(info) => info.serial,
-            Err(e) => {
-                log(&format!("{name}: cannot read the serial number: {e}"));
-                return;
-            }
-        };
-        let label = match &serial {
-            Some(s) => format!("{name} ({s})"),
-            None => name.clone(),
-        };
         let config = match config::load(self.config_path) {
             Ok(c) => c,
             Err(e) => {
-                log(&format!("{label}: {e:#}"));
+                log(&format!("{}: {e:#}", iface.hid_product));
                 return;
             }
         };
-        let Some(settings) = config.resolve(&name, serial.as_deref()) else {
-            log(&format!("{label}: no settings in the config file"));
-            return;
-        };
-        let outcomes = apply::apply(&mut d, &settings);
-        log(&format!("{label}: {}", apply::summarize(&outcomes)));
-        // Only a successful apply suppresses the other events of the same connection, so a failure is retried
-        if !outcomes
-            .iter()
-            .any(|o| matches!(o.status, apply::Status::Failed(_)))
-        {
-            self.last_apply.insert(slot, Instant::now());
+        // Right after connecting, the device may stop answering for a moment (e.g. while Logi
+        // Options+ talks to it), and Bluetooth gives no later event to retry on, so retry here
+        for attempt in 1..=attempts {
+            let last = attempt == attempts;
+            match apply_once(&mut d, &config) {
+                Ok((label, None)) => {
+                    log(&format!("{label}: no settings in the config file"));
+                    return;
+                }
+                Ok((label, Some(outcomes))) => {
+                    let failed = outcomes
+                        .iter()
+                        .any(|o| matches!(o.status, apply::Status::Failed(_)));
+                    if !failed || last {
+                        log(&format!("{label}: {}", apply::summarize(&outcomes)));
+                    }
+                    // Only a successful apply suppresses the other events of the same connection
+                    if !failed {
+                        self.last_apply.insert(slot, Instant::now());
+                        return;
+                    }
+                }
+                Err(e) if last => {
+                    log(&format!("{}: {e}", iface.hid_product));
+                    return;
+                }
+                Err(_) => {}
+            }
+            thread::sleep(Duration::from_secs(1));
         }
     }
+}
+
+/// Reads the name and serial number, and writes the matching settings. None if no settings match
+fn apply_once(
+    d: &mut Hidpp,
+    config: &config::Config,
+) -> Result<(String, Option<Vec<apply::Outcome>>)> {
+    let name = device::get_name(d)?.name;
+    let serial = device::get_serial(d)?;
+    let label = match &serial {
+        Some(s) => format!("{name} ({s})"),
+        None => name.clone(),
+    };
+    let outcomes = config
+        .resolve(&name, serial.as_deref())
+        .map(|s| apply::apply(d, &s));
+    Ok((label, outcomes))
 }
 
 /// Forwards notifications from one interface until it goes away
