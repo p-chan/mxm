@@ -1,0 +1,7 @@
+[workspace]
+# Not published to crates.io: determine the current version from git tags
+git_only = true
+git_tag_name = "v{{ version }}"
+# dist creates the GitHub Release with the binaries
+git_release_enable = false
+changelog_path = "./CHANGELOG.md"
