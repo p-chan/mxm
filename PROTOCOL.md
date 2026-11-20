@@ -1,8 +1,8 @@
-# MX Master 4 HID++ 2.0 Protocol
+# MX Master HID++ 2.0 Protocol
 
 English | [日本語](PROTOCOL.ja.md)
 
-These notes come from sending and receiving messages on a real MX Master 4 (firmware RBM27.02_0017, connected via Bluetooth LE, PID `0xB042`). The meaning of each feature was cross-checked against the implementation in [Solaar](https://github.com/pwr-Solaar/Solaar). Statements that were not verified on the device are marked as such.
+These notes come from sending and receiving messages on a real MX Master 4 (firmware RBM27.02_0017, connected via Bluetooth LE, PID `0xB042`). Differences on the MX Master 3S are listed in [MX Master 3S](#mx-master-3s). The meaning of each feature was cross-checked against the implementation in [Solaar](https://github.com/pwr-Solaar/Solaar). Statements that were not verified on the device are marked as such.
 
 ## Transport
 
@@ -101,6 +101,8 @@ Parameters are counted from byte 4 of the report, starting at 0.
 A value in the DPI list whose upper 3 bits are `111` means "from the previous value to the next value, in steps of the lower 13 bits". The MX Master 4 returns `00c8 e032 1f40`, i.e. 200-8000 in steps of 50.
 
 ### SmartShiftEnhanced `0x2111`
+
+The MX Master 3S has the older SmartShift `0x2110` instead; see [MX Master 3S](#mx-master-3s).
 
 | fn | Name | Request / response |
 | --- | --- | --- |
@@ -203,3 +205,18 @@ In HostsInfo `0x1815` fn 1 getHostInfo, the third byte appears to be the bus typ
 - DeviceInfo fn 1 getFwInfo(entity): `type, prefix (3 characters), number (BCD), revision (BCD), build (BCD u16), active, pid (u16)`
 - DeviceInfo fn 2: serial number (12 ASCII characters)
 - DeviceName fn 0: length of the name; fn 1 (offset): part of the name; fn 2: device type (`3` = mouse)
+
+## MX Master 3S
+
+Observed on an MX Master 3S (firmware RBM22.00_0003, connected via a Logi Bolt receiver, model ID `0xB034`). Everything else in this document applies unless listed here.
+
+- It has no SmartShiftEnhanced `0x2111`, Haptic `0x19B0` or ForceSensingButton `0x19C0`.
+- It has the older SmartShift `0x2110`, which has no torque:
+
+  | fn | Name | Request / response |
+  | --- | --- | --- |
+  | 0 | getRatchetControlMode | `wheelMode (1: freespin, 2: ratchet), autoDisengage, autoDisengageDefault` |
+  | 1 | setRatchetControlMode | `wheelMode, autoDisengage, autoDisengageDefault`. `0` means "unchanged" (writing `00 00 00` left the state unchanged) |
+
+- Its buttons are the same as on the MX Master 4 except that there is no haptic sense panel (`0x01A0`).
+- The native resolution of the thumb wheel is 18 (20 on the MX Master 4).

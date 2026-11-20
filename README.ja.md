@@ -2,7 +2,7 @@
 
 [English](README.md) | 日本語
 
-Logitech MX Master シリーズのマウスの設定を、HID++ 2.0 プロトコルで直接読み書きする CLI ツールです。MX Master 4 で動作を確認しています。Logi Options+ を使わずに DPI、SmartShift、ホイール、触覚フィードバック、ボタン割り当てなどを変更できます。
+Logitech MX Master シリーズのマウスの設定を、HID++ 2.0 プロトコルで直接読み書きする CLI ツールです。MX Master 4 と MX Master 3S で動作を確認しています。Logi Options+ を使わずに DPI、SmartShift、ホイール、触覚フィードバック、ボタン割り当てなどを変更できます。
 
 このプロジェクトは Logitech とは関係のない非公式のツールです。
 
@@ -12,7 +12,7 @@ Logitech MX Master シリーズのマウスの設定を、HID++ 2.0 プロトコ
 
 - macOS（Linux / Windows でも [hidapi](https://crates.io/crates/hidapi) が動けば動作する見込みですが未検証です）
 - Rust（ビルド時のみ）
-- MX Master シリーズのマウスを Bluetooth または Logi Bolt レシーバーで接続（動作確認は MX Master 4 のみ。ほかの機種では、触覚フィードバックなど一部の機能がない場合があります）
+- MX Master シリーズのマウスを Bluetooth または Logi Bolt レシーバーで接続（動作確認は MX Master 4 と MX Master 3S。MX Master 3S の触覚フィードバックのように機種にない機能は、エラーになります）
 
 ## セットアップ
 
@@ -87,4 +87,4 @@ mxm dump                                # 読み取れる設定をすべて JSON
 
 ## 謝辞
 
-Logitech は HID++ 2.0 の仕様書を公開していません。このツールで使っている feature の名前、メッセージの形式、デバイスの動作は、Logitech デバイスの管理ツール（主に Linux 向けで、macOS も一部対応） [Solaar](https://github.com/pwr-Solaar/Solaar) と照らし合わせ、可能な範囲で実機の MX Master 4 で確認しました（未検証の内容は [PROTOCOL.ja.md](PROTOCOL.ja.md) に記載）。Solaar のコードは、このプロジェクトに含まれていません。
+Logitech は HID++ 2.0 の仕様書を公開していません。このツールで使っている feature の名前、メッセージの形式、デバイスの動作は、Logitech デバイスの管理ツール（主に Linux 向けで、macOS も一部対応） [Solaar](https://github.com/pwr-Solaar/Solaar) と照らし合わせ、可能な範囲で実機の MX Master 4 と MX Master 3S で確認しました（未検証の内容は [PROTOCOL.ja.md](PROTOCOL.ja.md) に記載）。Solaar のコードは、このプロジェクトに含まれていません。

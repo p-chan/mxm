@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-A command-line tool that reads and writes the settings of Logitech MX Master mice directly over the HID++ 2.0 protocol. It has been tested on the MX Master 4. Change DPI, SmartShift, the scroll wheels, haptic feedback, button mappings and more without Logi Options+.
+A command-line tool that reads and writes the settings of Logitech MX Master mice directly over the HID++ 2.0 protocol. It has been tested on the MX Master 4 and MX Master 3S. Change DPI, SmartShift, the scroll wheels, haptic feedback, button mappings and more without Logi Options+.
 
 This is an unofficial project and is not affiliated with Logitech.
 
@@ -12,7 +12,7 @@ The results of the protocol analysis are documented in [PROTOCOL.md](PROTOCOL.md
 
 - macOS (Linux and Windows should work wherever [hidapi](https://crates.io/crates/hidapi) does, but are untested)
 - Rust (build time only)
-- An MX Master mouse connected via Bluetooth or a Logi Bolt receiver (only the MX Master 4 has been tested; other models may lack some features, such as haptic feedback)
+- An MX Master mouse connected via Bluetooth or a Logi Bolt receiver (tested on the MX Master 4 and MX Master 3S; features a model lacks, such as haptic feedback on the MX Master 3S, report an error)
 
 ## Installation
 
@@ -87,4 +87,4 @@ Add `--json` to get JSON output from any command.
 
 ## Acknowledgements
 
-Logitech does not publish the HID++ 2.0 specification. The feature names, message layouts and device behavior used by this tool were cross-checked against [Solaar](https://github.com/pwr-Solaar/Solaar), a manager for Logitech devices (mainly for Linux, with limited macOS support), and verified on a real MX Master 4 where possible (see [PROTOCOL.md](PROTOCOL.md) for what is unverified). No code from Solaar is included in this project.
+Logitech does not publish the HID++ 2.0 specification. The feature names, message layouts and device behavior used by this tool were cross-checked against [Solaar](https://github.com/pwr-Solaar/Solaar), a manager for Logitech devices (mainly for Linux, with limited macOS support), and verified on a real MX Master 4 and MX Master 3S where possible (see [PROTOCOL.md](PROTOCOL.md) for what is unverified). No code from Solaar is included in this project.
