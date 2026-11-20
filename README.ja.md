@@ -79,10 +79,75 @@ mxm dump                                # 読み取れる設定をすべて JSON
 
 `--json` を付けると、各コマンドの結果を JSON で出力します。
 
+## 設定ファイルと常駐モード
+
+マウスは電源を切ると、ほとんどの設定を忘れます（[注意](#注意) を参照）。`mxm daemon` は常駐して、マウスが接続するたびに設定ファイルの内容を書き込みます。
+
+設定は `~/.config/mxm/config.toml`（`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）に書きます。書いていない設定には触れません。
+
+```toml
+# 機種ごと。`mxm list` に表示される名前で指定（大文字小文字は区別しない）
+[device."MX Master 4"]
+dpi = 1600
+smartshift = { mode = "ratchet", threshold = 12, torque = 75 }  # threshold = "off" で SmartShift を無効にする
+wheel = { hires = true, invert = false }
+thumbwheel = { invert = true }
+haptic = 60                 # 1〜100、または "off"
+force = "default"           # ハプティックセンスパネルの押下圧。値、または "default"
+
+[device."MX Master 4".buttons]
+back = "middle"             # ボタンの割り当て。"default" で既定の動作に戻す
+
+# 1 台ごと。`mxm info` に表示されるシリアル番号で指定。機種の設定より優先される
+[serial."XXXXXXXXXXXX"]
+dpi = 2000
+```
+
+```sh
+mxm apply                   # 接続中のすべてのマウスに設定ファイルを 1 回書き込む
+mxm daemon                  # 常駐して、接続のたびに設定ファイルを書き込む
+```
+
+`mxm daemon` は、起動したとき、マウスが Bluetooth または Logi Bolt レシーバー経由で接続したとき、電源を入れたマウスが再設定を求めてきたときに、設定ファイルを書き込みます。設定ファイルは毎回読み直すので、編集した内容は次の接続から反映されます。MX Master 3S の触覚フィードバックのように機種にない設定は、「not supported」と表示して飛ばします。Logi Options+ も接続のたびに自分の設定を書き込むので、使うときは Options+ を終了してください。
+
+### ログイン時に起動する（macOS）
+
+次の内容を `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` に保存します。`YOU` は自分のユーザー名に置き換えてください。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>io.github.p-chan.mxm</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/YOU/.cargo/bin/mxm</string>
+    <string>daemon</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardErrorPath</key>
+  <string>/tmp/mxm.log</string>
+</dict>
+</plist>
+```
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.p-chan.mxm.plist   # 起動する（以降はログインのたびに起動）
+tail -f /tmp/mxm.log                                                                 # ログ
+launchctl bootout gui/$(id -u)/io.github.p-chan.mxm                                  # 止める
+```
+
+launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。システム設定 → プライバシーとセキュリティ → 入力監視 に `~/.cargo/bin/mxm` を追加してください。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。
+
 ## 注意
 
 - Logi Options+ が起動していると、Options+ が設定を上書きしたり、ボタンやホイールを HID++ に転送（divert）したりします。このツールで変更した設定を保ちたいときは、Options+ を終了してください。
-- マウスの電源を入れ直すと、触覚の強さ、SmartShift、ハプティックセンスパネルの押下圧は残りますが、DPI、高解像度スクロール、サムホイールの方向、ボタンの割り当てと横取り（divert）は既定に戻ります（[PROTOCOL.ja.md](PROTOCOL.ja.md#電源の入れ直し後の設定) を参照）。接続のたびに設定を書き直す常駐モードを追加する予定です。
+- マウスの電源を入れ直すと、触覚の強さ、SmartShift、ハプティックセンスパネルの押下圧は残りますが、DPI、高解像度スクロール、サムホイールの方向、ボタンの割り当てと横取り（divert）は既定に戻ります（[PROTOCOL.ja.md](PROTOCOL.ja.md#電源の入れ直し後の設定) を参照）。`mxm daemon` を使うと、接続のたびに書き直せます（[設定ファイルと常駐モード](#設定ファイルと常駐モード) を参照）。
 - 左右クリックは割り当てを変更できません（デバイスが許可していません）。一方、ほかのボタンを左右クリックとして割り当てることはできます。
 
 ## 謝辞

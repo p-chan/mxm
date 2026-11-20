@@ -15,6 +15,8 @@ Reading the receiver's HID++ 1.0 register `0xB5` (sub-addresses `0x5N` for pairi
 
 On macOS, hidapi can read from and write to both the Bluetooth LE mouse and the receiver without detaching the OS driver. With the Bluetooth LE mouse, regular input reports such as mouse movement are also read from the same device, so HID++ reports are selected by their report ID.
 
+hidapi opens devices exclusively on macOS by default. While one process holds a device, others fail to open it with `exclusive access and device already open`, so the tool opens devices in non-exclusive mode.
+
 ## Message format
 
 The tool uses long reports (20 bytes).
@@ -28,7 +30,7 @@ The tool uses long reports (20 bytes).
 | 4-19 | Parameters |
 
 - A response carries the same feature index and function / software ID as its request. Reports with software ID `0` are notifications that the device sends on its own.
-- Logi Options+ talks to the device at the same time, so this tool uses software ID `0xB` to avoid picking up its responses.
+- Logi Options+ talks to the device at the same time, so this tool uses software ID `0xB` to avoid picking up its responses. `mxm daemon` uses `0xC`, so that it and other `mxm` commands can run at the same time.
 - HID++ 2.0 errors come back as `[0x11, idx, 0xFF, featureIndex, fn|sw, errorCode]`.
 - To look up a feature index from a feature ID, call function 0 `getFeature(featureId)` of Root (index 0).
 
@@ -85,6 +87,17 @@ Observed by changing settings with Logi Options+ stopped, turning the mouse off 
 | analyticsKeyEvents reporting (`0x1B04`) | Reset to disabled |
 
 Logi Options+ does not undo its diversions when it exits: after it was stopped, the main wheel, the thumb wheel and the back, forward, gesture and haptic sense panel buttons stayed diverted, so they did not reach the OS until the diversion was turned off.
+
+## Connection events
+
+Observed by turning an MX Master 3S (Logi Bolt receiver) and an MX Master 4 (Bluetooth LE) off and on with their power switches. `mxm daemon` uses these events to write the settings again.
+
+- **Logi Bolt receiver**: the receiver sends the HID++ 1.0 notification `[0x10, slot, 0x41, protocol, flags, wpid (little-endian)]`. Turning the MX Master 3S off produced `10 02 41 10 42 34 b0` (bit6 of `flags` set: link not established), and turning it on produced `10 02 41 10 02 34 b0`. The receiver sends this notification only while bit `0x000100` (wireless) of its HID++ 1.0 register `0x00` is set. Both observed receivers already had it set (`0x000100` and `0x000900`, presumably by Logi Options+); `mxm daemon` sets the bit when it is missing and keeps the other bits.
+- **WirelessDeviceStatus `0x1D4B`**: right after the connection notification, the MX Master 3S sent notification fn 0 `01 01 01`: `status, request (1: software reconfiguration needed), reason (1: powered on)`.
+- **Bluetooth LE**: turning the MX Master 4 off closes its HID device (reads fail with "device disconnected"). Turning it on makes it appear again as a new HID device, which answered requests about 0.5 seconds later. Whether it also sends the `0x1D4B` notification was not observed.
+- **Input Monitoring**: a process started by launchd could open the receiver, but opening the Bluetooth LE mouse failed with `(iokit/common) not permitted` until the Input Monitoring permission was granted to the executable.
+
+Whether a mouse that wakes from power saving (without being turned off) loses settings or sends `0x1D4B` has not been checked.
 
 ## Features
 

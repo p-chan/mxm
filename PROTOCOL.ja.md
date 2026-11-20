@@ -15,6 +15,8 @@ MX Master 4（ファームウェア RBM27.02_0017、Bluetooth LE 接続、PID `0
 
 macOS では、Bluetooth LE のマウスもレシーバーも、OS のドライバーを外さずに hidapi から読み書きできます。Bluetooth LE のマウスでは、マウス移動などの通常の入力レポートも同じデバイスから読めるため、report ID で HID++ のレポートだけを選びます。
 
+macOS の hidapi は、既定でデバイスを独占して開きます。あるプロセスがデバイスを開いている間、ほかのプロセスは `exclusive access and device already open` で開けなくなるため、このツールは独占しない形で開きます。
+
 ## メッセージ形式
 
 long report（20 bytes）を使います。
@@ -28,7 +30,7 @@ long report（20 bytes）を使います。
 | 4〜19 | パラメーター |
 
 - 応答は要求と同じ feature index と function / software ID で返ります。software ID が `0` のレポートは、デバイスが自発的に送る通知です。
-- Logi Options+ も同時に通信しているため、応答を取り違えないよう、このツールは software ID `0xB` を使います。
+- Logi Options+ も同時に通信しているため、応答を取り違えないよう、このツールは software ID `0xB` を使います。`mxm daemon` は `0xC` を使うので、ほかの `mxm` のコマンドと同時に動かせます。
 - HID++ 2.0 のエラーは `[0x11, idx, 0xFF, featureIndex, fn|sw, errorCode]` の形で返ります。
 - feature ID から feature index を引くには、Root（index 0）の function 0 `getFeature(featureId)` を呼びます。
 
@@ -85,6 +87,17 @@ Logi Options+ を止めた状態で設定を変え、マウスの電源スイッ
 | analyticsKeyEvents の報告（`0x1B04`） | 無効に戻る |
 
 Logi Options+ は、終了するときに divert を解除しません。止めたあとも、メインホイール、サムホイール、戻る・進む・ジェスチャー・ハプティックセンスパネルのボタンが divert されたままで、divert を解除するまで OS に届きませんでした。
+
+## 接続のイベント
+
+MX Master 3S（Logi Bolt レシーバー）と MX Master 4（Bluetooth LE）の電源スイッチを切って入れ直し、観察しました。`mxm daemon` は、これらのイベントを受けて設定を書き直します。
+
+- **Logi Bolt レシーバー**: レシーバーが HID++ 1.0 の通知 `[0x10, スロット, 0x41, プロトコル, flags, wpid（リトルエンディアン）]` を送ります。MX Master 3S の電源を切ると `10 02 41 10 42 34 b0`（`flags` の bit6 が 1: 接続なし）、入れると `10 02 41 10 02 34 b0` が届きました。レシーバーがこの通知を送るのは、HID++ 1.0 のレジスター `0x00` の bit `0x000100`（wireless）が立っているときだけです。観察した 2 台のレシーバーでは、どちらも最初から立っていました（`0x000100` と `0x000900`。Logi Options+ が立てたと推測）。`mxm daemon` は、この bit が立っていなければ、ほかの bit を残したまま立てます。
+- **WirelessDeviceStatus `0x1D4B`**: 接続の通知の直後に、MX Master 3S が通知 fn 0 `01 01 01` を送りました。中身は `status, request（1: ソフトウェアによる再設定が必要）, reason（1: 電源投入）` です。
+- **Bluetooth LE**: MX Master 4 の電源を切ると、HID デバイスが閉じます（読み取りが「device disconnected」で失敗する）。電源を入れると新しい HID デバイスとして現れ、約 0.5 秒後には要求に応答しました。`0x1D4B` の通知も送るかは観察できていません。
+- **入力監視**: launchd から起動したプロセスは、レシーバーは開けましたが、Bluetooth LE のマウスは実行ファイルに入力監視の権限を付けるまで `(iokit/common) not permitted` で開けませんでした。
+
+電源を切らずに省電力状態から復帰したときに設定が消えるか、`0x1D4B` を送るかは確認していません。
 
 ## 各 feature
 

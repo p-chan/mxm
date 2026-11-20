@@ -260,4 +260,20 @@ buttons = { forward = "back" }
         assert!(parse("[device.\"MX Master 4\"]\nsmartshift = { threshold = 255 }").is_err());
         assert!(parse("[device.\"MX Master 4\"]\nsmartshift = { mode = \"fast\" }").is_err());
     }
+
+    #[test]
+    fn readme_examples_parse() {
+        for readme in [
+            include_str!("../README.md"),
+            include_str!("../README.ja.md"),
+        ] {
+            let block = readme
+                .split("```toml\n")
+                .nth(1)
+                .and_then(|rest| rest.split("```").next())
+                .expect("README has a TOML example");
+            let c = parse(block).unwrap();
+            assert!(c.resolve("MX Master 4", None).is_some());
+        }
+    }
 }
