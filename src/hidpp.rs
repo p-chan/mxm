@@ -47,7 +47,11 @@ impl fmt::Display for HidppError {
                 f.write_str(message)
             }
             Self::Unsupported(id) => {
-                write!(f, "Feature 0x{id:04x} is not supported by this device")
+                write!(
+                    f,
+                    "Feature 0x{id:04x} ({}) is not supported by this device",
+                    crate::features::feature_name(*id)
+                )
             }
         }
     }

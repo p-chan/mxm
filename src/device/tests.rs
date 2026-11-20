@@ -100,6 +100,16 @@ impl Fake {
             writes: Vec::new(),
         }
     }
+
+    /// Responses recorded from an MX Master 3S (RBM22.00_0003), which has SmartShift (0x2110) instead of 0x2111
+    fn mx_master_3s() -> Self {
+        let mut d = Self::new();
+        let enhanced = format!("{:04x}:", f::SMART_SHIFT_ENHANCED);
+        d.recorded.retain(|k, _| !k.starts_with(&enhanced));
+        d.recorded
+            .insert(format!("{:04x}:0:", f::SMART_SHIFT), b("01 0a 0a"));
+        d
+    }
 }
 
 impl FeatureCall for Fake {
@@ -112,15 +122,18 @@ impl FeatureCall for Fake {
             .recorded
             .keys()
             .any(|r| r.starts_with(&format!("{feature_id:04x}:{function}:")));
-        if function >= 2 && !is_getter {
+        // SmartShift (0x2110) writes with fn 1; the other features write with fn 2 or later
+        let is_writer = function >= 2 || (feature_id == f::SMART_SHIFT && function == 1);
+        if is_writer && !is_getter {
             self.writes.push(k);
             return Ok([0; 16]);
         }
         panic!("no recorded response for {k}");
     }
 
-    fn has(&mut self, _: u16) -> bool {
-        true
+    fn has(&mut self, feature_id: u16) -> bool {
+        let prefix = format!("{feature_id:04x}:");
+        self.recorded.keys().any(|k| k.starts_with(&prefix))
     }
 }
 
@@ -160,10 +173,10 @@ fn smartshift_always_writes_all_three_values() {
         SmartShift {
             mode: WheelMode::Freespin,
             threshold: Threshold::Value(12),
-            torque: 75,
+            torque: Some(75),
             defaults: SmartShiftDefaults {
                 threshold: 10,
-                torque: 75
+                torque: Some(75)
             },
             tunable_torque: true,
         }
@@ -317,4 +330,36 @@ fn decodes_analytics_key_events() {
 fn reads_analytics_reporting_flag() {
     let controls = get_controls(&mut Fake::new()).unwrap();
     assert!(controls.iter().all(|c| c.analytics));
+}
+
+#[test]
+fn smartshift_v1_without_torque() {
+    let mut d = Fake::mx_master_3s();
+    assert_eq!(
+        get_smartshift(&mut d).unwrap(),
+        SmartShift {
+            mode: WheelMode::Freespin,
+            threshold: Threshold::Value(10),
+            torque: None,
+            defaults: SmartShiftDefaults {
+                threshold: 10,
+                torque: None
+            },
+            tunable_torque: false,
+        }
+    );
+    assert!(
+        set_smartshift(&mut d, None, None, Some(50))
+            .unwrap_err()
+            .to_string()
+            .contains("torque")
+    );
+    set_smartshift(
+        &mut d,
+        Some(WheelMode::Ratchet),
+        Some(Threshold::Value(20)),
+        None,
+    )
+    .unwrap();
+    assert_eq!(d.writes, ["2110:1:021400"]);
 }

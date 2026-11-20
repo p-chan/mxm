@@ -303,7 +303,8 @@ pub fn set_dpi(d: &mut impl FeatureCall, dpi: u16, sensor: u8) -> Result<()> {
     Ok(())
 }
 
-// ---- SmartShiftEnhanced (0x2111) ----
+// ---- SmartShift (0x2110) / SmartShiftEnhanced (0x2111) ----
+// 0x2111
 // getRatchetControlMode: [wheelMode (1=freespin, 2=ratchet), autoDisengage (1..254, 255 = SmartShift off), torque (1..100)]
 // setRatchetControlMode: same layout; 0 means "unchanged"
 
@@ -346,7 +347,8 @@ impl std::str::FromStr for Threshold {
 #[derive(Debug, Serialize, PartialEq)]
 pub struct SmartShiftDefaults {
     pub threshold: u8,
-    pub torque: u8,
+    /// None on devices without torque (SmartShift 0x2110)
+    pub torque: Option<u8>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -354,31 +356,56 @@ pub struct SmartShiftDefaults {
 pub struct SmartShift {
     pub mode: WheelMode,
     pub threshold: Threshold,
-    pub torque: u8,
+    /// None on devices without torque (SmartShift 0x2110)
+    pub torque: Option<u8>,
     pub defaults: SmartShiftDefaults,
     pub tunable_torque: bool,
 }
 
+fn parse_mode(v: u8) -> WheelMode {
+    if v == 1 {
+        WheelMode::Freespin
+    } else {
+        WheelMode::Ratchet
+    }
+}
+
+fn parse_threshold(v: u8) -> Threshold {
+    if v == 0xff {
+        Threshold::Off
+    } else {
+        Threshold::Value(v)
+    }
+}
+
+/// Uses SmartShiftEnhanced (0x2111, e.g. MX Master 4) when available, otherwise SmartShift (0x2110, e.g. MX Master 3S)
 pub fn get_smartshift(d: &mut impl FeatureCall) -> Result<SmartShift> {
-    let caps = d.call(f::SMART_SHIFT_ENHANCED, 0, &[])?;
-    let r = d.call(f::SMART_SHIFT_ENHANCED, 1, &[])?;
+    if d.has(f::SMART_SHIFT_ENHANCED) {
+        let caps = d.call(f::SMART_SHIFT_ENHANCED, 0, &[])?;
+        let r = d.call(f::SMART_SHIFT_ENHANCED, 1, &[])?;
+        let tunable = caps[0] & 0x01 == 1;
+        return Ok(SmartShift {
+            mode: parse_mode(r[0]),
+            threshold: parse_threshold(r[1]),
+            torque: Some(r[2]),
+            defaults: SmartShiftDefaults {
+                threshold: caps[1],
+                torque: Some(caps[2]),
+            },
+            tunable_torque: tunable,
+        });
+    }
+    // SmartShift (0x2110) getRatchetControlMode: [wheelMode, autoDisengage, autoDisengageDefault]
+    let r = d.call(f::SMART_SHIFT, 0, &[])?;
     Ok(SmartShift {
-        mode: if r[0] == 1 {
-            WheelMode::Freespin
-        } else {
-            WheelMode::Ratchet
-        },
-        threshold: if r[1] == 0xff {
-            Threshold::Off
-        } else {
-            Threshold::Value(r[1])
-        },
-        torque: r[2],
+        mode: parse_mode(r[0]),
+        threshold: parse_threshold(r[1]),
+        torque: None,
         defaults: SmartShiftDefaults {
-            threshold: caps[1],
-            torque: caps[2],
+            threshold: r[2],
+            torque: None,
         },
-        tunable_torque: caps[0] & 0x01 == 1,
+        tunable_torque: false,
     })
 }
 
@@ -388,7 +415,12 @@ pub fn set_smartshift(
     threshold: Option<Threshold>,
     torque: Option<u8>,
 ) -> Result<()> {
-    let cur = d.call(f::SMART_SHIFT_ENHANCED, 1, &[])?;
+    let enhanced = d.has(f::SMART_SHIFT_ENHANCED);
+    let cur = if enhanced {
+        d.call(f::SMART_SHIFT_ENHANCED, 1, &[])?
+    } else {
+        d.call(f::SMART_SHIFT, 0, &[])?
+    };
     let mode = match mode {
         None => cur[0],
         Some(WheelMode::Freespin) => 1,
@@ -399,6 +431,14 @@ pub fn set_smartshift(
         Some(Threshold::Off) => 0xff,
         Some(Threshold::Value(v)) => v,
     };
+    if !enhanced {
+        if torque.is_some() {
+            bail!("This device does not support changing the ratchet torque");
+        }
+        // SmartShift (0x2110) setRatchetControlMode: [wheelMode, autoDisengage, autoDisengageDefault]; 0 means "unchanged"
+        d.call(f::SMART_SHIFT, 1, &[mode, threshold, 0])?;
+        return Ok(());
+    }
     let torque = torque.unwrap_or(cur[2]);
     if !(1..=100).contains(&torque) {
         bail!("torque must be 1-100");

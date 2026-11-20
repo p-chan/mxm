@@ -1,8 +1,8 @@
-# MX Master 4 の HID++ 2.0 プロトコル
+# MX Master の HID++ 2.0 プロトコル
 
 [English](PROTOCOL.md) | 日本語
 
-MX Master 4（ファームウェア RBM27.02_0017、Bluetooth LE 接続、PID `0xB042`）で実際に送受信して確認した内容です。feature の意味は [Solaar](https://github.com/pwr-Solaar/Solaar) の実装と照らし合わせました。実機で確かめていない内容は、その旨を書いています。
+MX Master 4（ファームウェア RBM27.02_0017、Bluetooth LE 接続、PID `0xB042`）で実際に送受信して確認した内容です。MX Master 3S との違いは「[MX Master 3S](#mx-master-3s)」にまとめています。feature の意味は [Solaar](https://github.com/pwr-Solaar/Solaar) の実装と照らし合わせました。実機で確かめていない内容は、その旨を書いています。
 
 ## 通信経路
 
@@ -41,7 +41,7 @@ long report（20 bytes）を使います。
 
 ## feature テーブル
 
-`mxm features` の出力です。feature index は機種やファームウェアで変わるため、毎回 feature ID から引きます。
+`mxm features` の出力です。名前は Solaar に合わせていて、Solaar に名前がない feature は「不明」としています。feature index は機種やファームウェアで変わるため、毎回 feature ID から引きます。
 
 | index | ID | 名前 | 備考 |
 | ---: | --- | --- | --- |
@@ -66,7 +66,7 @@ long report（20 bytes）を使います。
 | 19 | `0x2150` | ThumbWheel | |
 | 20 | `0x2201` | AdjustableDpi | |
 | 21 | `0x2251` | WheelStats | |
-| 22 | `0x00D1` | DfuControl | |
+| 22 | `0x00D1` | 不明 | |
 | 23〜45 | `0x18xx`, `0x1Exx`, `0x9xxx` ほか | 診断・製造用 | hidden フラグ付き（多くは engineering フラグも付く） |
 
 ## 電源の入れ直し後の設定
@@ -101,6 +101,8 @@ Logi Options+ は、終了するときに divert を解除しません。止め�
 DPI リストの上位 3 bit が `111` の値は「直前の値から直後の値まで、下位 13 bit の刻み」を表します。MX Master 4 は `00c8 e032 1f40` で、200〜8000 を 50 刻みです。
 
 ### SmartShiftEnhanced `0x2111`
+
+MX Master 3S は、代わりに古い SmartShift `0x2110` を持っています（「[MX Master 3S](#mx-master-3s)」を参照）。
 
 | fn | 名前 | 要求 / 応答 |
 | --- | --- | --- |
@@ -203,3 +205,18 @@ HostsInfo `0x1815` の fn 1 getHostInfo の応答の 3 byte 目は、バスの�
 - DeviceInfo fn 1 getFwInfo(entity): `type, prefix (3 文字), number (BCD), revision (BCD), build (BCD u16), active, pid (u16)`
 - DeviceInfo fn 2: シリアル番号（ASCII 12 文字）
 - DeviceName fn 0: 名前の長さ、fn 1 (offset): 名前の一部、fn 2: 種別（`3` = mouse）
+
+## MX Master 3S
+
+MX Master 3S（ファームウェア RBM22.00_0003、Logi Bolt レシーバー接続、モデル ID `0xB034`）で確認した内容です。ここに書いていないことは、このドキュメントのほかの部分と同じです。
+
+- SmartShiftEnhanced `0x2111`、Haptic `0x19B0`、ForceSensingButton `0x19C0` がありません。
+- 代わりに、トルクの項目がない古い SmartShift `0x2110` があります。
+
+  | fn | 名前 | 要求 / 応答 |
+  | --- | --- | --- |
+  | 0 | getRatchetControlMode | `wheelMode (1: フリースピン, 2: ラチェット), autoDisengage, autoDisengageDefault` |
+  | 1 | setRatchetControlMode | `wheelMode, autoDisengage, autoDisengageDefault`。`0` は「変更しない」（`00 00 00` を書いても状態は変わりませんでした） |
+
+- ボタンは、ハプティックセンスパネル（`0x01A0`）がない以外は MX Master 4 と同じです。
+- サムホイールのネイティブの解像度は 18 です（MX Master 4 は 20）。
