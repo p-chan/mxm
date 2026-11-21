@@ -7,3 +7,6 @@ git_release_enable = false
 changelog_path = "./CHANGELOG.md"
 # Release only when the release PR is merged, not whenever the version in Cargo.toml changes
 release_always = false
+# Open a release PR only for user-facing changes (feat / fix, including breaking ones).
+# Other commits are still listed in the changelog of the next release.
+release_commits = "^(feat|fix)(\\(.+\\))?!?:"
