@@ -2,6 +2,12 @@
 //!
 //! On macOS this is a LaunchAgent. Other platforms are not supported yet; on Linux this would be a
 //! systemd user service.
+//!
+//! The LaunchAgent runs a copy of `mxm` at a fixed path, not the `mxm` that installed it. macOS
+//! keeps the Input Monitoring permission per executable path (and checks the code signature), so
+//! the permission would be lost whenever the path changes, e.g. when mise installs a new version
+//! into a versioned directory. Running `mxm service install` again after an update replaces the
+//! copy at the same path, and the permission carries over.
 
 use std::path::{Path, PathBuf};
 
@@ -71,7 +77,8 @@ fn absolute_config(config: Option<PathBuf>) -> Result<PathBuf> {
 
 #[cfg(target_os = "macos")]
 mod platform {
-    use std::path::PathBuf;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
 
     use anyhow::{Context, Result, anyhow, bail};
@@ -115,11 +122,44 @@ mod platform {
             .success())
     }
 
-    /// Not canonicalized, so that a stable symlink keeps working after the target is updated
-    fn exe() -> Result<PathBuf> {
-        Ok(std::env::current_exe()?)
+    /// The copy of `mxm` that the LaunchAgent runs
+    fn daemon_exe() -> Result<PathBuf> {
+        Ok(home()?.join("Library/Application Support/mxm/mxm"))
     }
 
+    /// Copies the running `mxm` to `dest`, through a temporary file renamed into place
+    fn copy_self(dest: &Path) -> Result<()> {
+        let src = std::env::current_exe().context("Cannot find the running mxm")?;
+        // Skip when running the copy itself
+        if let (Ok(a), Ok(b)) = (std::fs::canonicalize(&src), std::fs::canonicalize(dest))
+            && a == b
+        {
+            return Ok(());
+        }
+        let dir = dest.parent().context("Invalid path for the daemon")?;
+        std::fs::create_dir_all(dir)?;
+        // Unique per process, so that concurrent installs do not write to the same file
+        let tmp = dir.join(format!(".mxm.{}.tmp", std::process::id()));
+        let result = (|| {
+            std::fs::copy(&src, &tmp)
+                .with_context(|| format!("Cannot copy {} to {}", src.display(), tmp.display()))?;
+            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?;
+            std::fs::rename(&tmp, dest).with_context(|| format!("Cannot write {}", dest.display()))
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&tmp);
+        }
+        result
+    }
+
+    /// Whether the installed copy differs from the running `mxm`
+    fn is_outdated(dest: &Path) -> Option<bool> {
+        let src = std::fs::read(std::env::current_exe().ok()?).ok()?;
+        Some(std::fs::read(dest).ok()? != src)
+    }
+
+    /// Stops the daemon and waits until launchd has removed it. `launchctl bootout` can return
+    /// before that, and `launchctl bootstrap` right after it then fails with an I/O error
     fn bootout(domain: &str) -> Result<()> {
         let out = launchctl(&["bootout", &format!("{domain}/{LABEL}")])?;
         if !out.status.success() {
@@ -128,25 +168,34 @@ mod platform {
                 String::from_utf8_lossy(&out.stderr).trim()
             );
         }
-        Ok(())
+        for _ in 0..50 {
+            if !is_loaded(domain)? {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        bail!("mxm daemon did not stop within 5 seconds")
     }
 
     pub fn print(config: Option<PathBuf>) -> Result<()> {
-        print!("{}", plist(&exe()?, config.as_deref(), &log_path()?));
+        print!("{}", plist(&daemon_exe()?, config.as_deref(), &log_path()?));
         Ok(())
     }
 
     pub fn install(config: Option<PathBuf>) -> Result<()> {
-        let exe = exe()?;
+        let exe = daemon_exe()?;
         let path = plist_path()?;
         let log = log_path()?;
+        let domain = domain()?;
+        // Prepare the copy and the plist before stopping the running daemon, so that a failure
+        // leaves it running. Replacing the copy by rename does not affect the running process
+        copy_self(&exe)?;
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
         std::fs::write(&path, plist(&exe, config.as_deref(), &log))
             .with_context(|| format!("Cannot write {}", path.display()))?;
-        let domain = domain()?;
-        // Reload so that a changed executable path or config takes effect
+        // Reload so that the new copy and config take effect
         if is_loaded(&domain)? {
             bootout(&domain)?;
         }
@@ -158,11 +207,13 @@ mod platform {
             );
         }
         println!("Installed {} and started mxm daemon", path.display());
-        println!("Log: {}", log.display());
+        println!("Daemon: {}", exe.display());
+        println!("Log:    {}", log.display());
         println!();
         println!("To reach mice connected over Bluetooth, allow Input Monitoring for");
         println!("  {}", exe.display());
         println!("in System Settings > Privacy & Security > Input Monitoring.");
+        println!("After updating mxm, run `mxm service install` again to update the daemon.");
         Ok(())
     }
 
@@ -178,6 +229,18 @@ mod platform {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 println!("mxm service is not installed");
             }
+            Err(e) => return Err(e.into()),
+        }
+        let exe = daemon_exe()?;
+        match std::fs::remove_file(&exe) {
+            Ok(()) => {
+                println!("Removed {}", exe.display());
+                if let Some(dir) = exe.parent() {
+                    // Only succeeds when empty
+                    let _ = std::fs::remove_dir(dir);
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e.into()),
         }
         Ok(())
@@ -206,6 +269,13 @@ mod platform {
             }
         } else {
             println!("State:     not loaded (run `mxm service install` again)");
+        }
+        let exe = daemon_exe()?;
+        println!("Daemon:    {}", exe.display());
+        if !exe.exists() {
+            println!("           missing (run `mxm service install` again)");
+        } else if is_outdated(&exe) == Some(true) {
+            println!("           differs from this mxm (run `mxm service install` to update)");
         }
         println!("Log:       {}", log_path()?.display());
         Ok(())

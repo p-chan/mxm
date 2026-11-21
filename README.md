@@ -127,9 +127,16 @@ mxm service uninstall     # stop and unregister it
 tail -f ~/Library/Logs/mxm.log
 ```
 
-`mxm service install` writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` pointing at the running `mxm` executable. The config path is fixed when you run it (the default `~/.config/mxm/config.toml`, or `$XDG_CONFIG_HOME/mxm/config.toml` if it is set, unless `--config <path>` is given); run it again after changing either. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead.
+`mxm service install` copies the running `mxm` to `~/Library/Application Support/mxm/mxm` and writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` that runs the copy. Run it again after updating `mxm` to update the copy (`mxm service status` tells when the copy is missing or differs from the `mxm` you run). The config path is fixed when you run it (the default `~/.config/mxm/config.toml`, or `$XDG_CONFIG_HOME/mxm/config.toml` if it is set, unless `--config <path>` is given); run it again after changing it. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead; it runs the copy at the path above, which `--print` does not create.
 
-When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. Release binaries are signed with a Developer ID, so the permission carries over when you update `mxm`.
+When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. macOS keeps the permission per executable path, and release binaries are signed with a Developer ID, so it carries over when `mxm service install` replaces the copy with an updated `mxm`, however you installed it (e.g. mise installs each version into a different directory).
+
+With [mise](https://mise.jdx.dev/), a `postinstall` command can update the copy whenever mise installs a new version:
+
+```toml
+[tools]
+"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service install" }
+```
 
 Other platforms are not supported by `mxm service` yet; run `mxm daemon` with your service manager (e.g. a systemd user service on Linux).
 
