@@ -10,3 +10,37 @@ release_always = false
 # Open a release PR only for user-facing changes (feat / fix, including breaking ones).
 # Other commits are still listed in the changelog of the next release.
 release_commits = "^(feat|fix)(\\(.+\\))?!?:"
+
+# The default template of release-plz, except that the heading is `v<version>` without a date.
+# dist uses the heading as the title of the GitHub Release, so it matches the tag.
+[changelog]
+body = """
+
+## [v{{ version }}]\
+    {%- if release_link -%}\
+        ({{ release_link }})\
+    {% endif %}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+
+    {% for commit in commits %}
+        {%- if commit.scope -%}
+            - *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}\
+                {{ commit.message }}\
+                {%- if commit.links %} \
+                    ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%})\
+                {% endif %}
+        {% else -%}
+            - {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}
+        {% endif -%}
+    {% endfor -%}
+{% endfor %}
+"""
+commit_parsers = [
+  { message = "^feat", group = "added" },
+  { message = "^changed", group = "changed" },
+  { message = "^deprecated", group = "deprecated" },
+  { message = "^fix", group = "fixed" },
+  { message = "^security", group = "security" },
+  { message = "^.*", group = "other" },
+]
