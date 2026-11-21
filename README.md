@@ -120,37 +120,18 @@ mxm daemon                  # keep running and write the config on every connect
 
 ### Starting at login (macOS)
 
-Save the following as `~/Library/LaunchAgents/io.github.p-chan.mxm.plist`, replacing `YOU` with your user name (and the path with `~/.cargo/bin/mxm` if you built it from source).
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>io.github.p-chan.mxm</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/YOU/.local/bin/mxm</string>
-    <string>daemon</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardErrorPath</key>
-  <string>/tmp/mxm.log</string>
-</dict>
-</plist>
-```
-
 ```sh
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.p-chan.mxm.plist   # start (and at every login)
-tail -f /tmp/mxm.log                                                                 # log
-launchctl bootout gui/$(id -u)/io.github.p-chan.mxm                                  # stop
+mxm service install       # register mxm daemon as a LaunchAgent and start it (and at every login)
+mxm service status        # whether it is registered and running
+mxm service uninstall     # stop and unregister it
+tail -f ~/Library/Logs/mxm.log
 ```
 
-When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). Add `~/.local/bin/mxm` (or `~/.cargo/bin/mxm` if you built it from source) in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it.
+`mxm service install` writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` pointing at the running `mxm` executable. The config path is fixed when you run it (the default `~/.config/mxm/config.toml`, or `$XDG_CONFIG_HOME/mxm/config.toml` if it is set, unless `--config <path>` is given); run it again after changing either. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead.
+
+When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it.
+
+Other platforms are not supported by `mxm service` yet; run `mxm daemon` with your service manager (e.g. a systemd user service on Linux).
 
 ## Notes
 

@@ -120,37 +120,18 @@ mxm daemon                  # 常駐して、接続のたびに設定ファイ�
 
 ### ログイン時に起動する（macOS）
 
-次の内容を `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` に保存します。`YOU` は自分のユーザー名に置き換えてください（ソースからビルドした場合は、パスを `~/.cargo/bin/mxm` にします）。
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>io.github.p-chan.mxm</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/YOU/.local/bin/mxm</string>
-    <string>daemon</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardErrorPath</key>
-  <string>/tmp/mxm.log</string>
-</dict>
-</plist>
-```
-
 ```sh
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.p-chan.mxm.plist   # 起動する（以降はログインのたびに起動）
-tail -f /tmp/mxm.log                                                                 # ログ
-launchctl bootout gui/$(id -u)/io.github.p-chan.mxm                                  # 止める
+mxm service install       # mxm daemon を LaunchAgent に登録して起動する（以降はログインのたびに起動）
+mxm service status        # 登録されているか、動いているか
+mxm service uninstall     # 止めて登録を解除する
+tail -f ~/Library/Logs/mxm.log
 ```
 
-launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。システム設定 → プライバシーとセキュリティ → 入力監視 に `~/.local/bin/mxm`（ソースからビルドした場合は `~/.cargo/bin/mxm`）を追加してください。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。
+`mxm service install` は、実行中の `mxm` の実行ファイルを指す `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ既定の `~/.config/mxm/config.toml`。`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）。設定ファイルのパスや実行ファイルの場所を変えたら、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。
+
+launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。
+
+macOS 以外では、まだ `mxm service` に対応していません。`mxm daemon` を各 OS のサービス管理（Linux なら systemd のユーザーサービスなど）から起動してください。
 
 ## 注意
 
