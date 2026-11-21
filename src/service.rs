@@ -158,6 +158,8 @@ mod platform {
         Some(std::fs::read(dest).ok()? != src)
     }
 
+    /// Stops the daemon and waits until launchd has removed it. `launchctl bootout` can return
+    /// before that, and `launchctl bootstrap` right after it then fails with an I/O error
     fn bootout(domain: &str) -> Result<()> {
         let out = launchctl(&["bootout", &format!("{domain}/{LABEL}")])?;
         if !out.status.success() {
@@ -166,7 +168,13 @@ mod platform {
                 String::from_utf8_lossy(&out.stderr).trim()
             );
         }
-        Ok(())
+        for _ in 0..50 {
+            if !is_loaded(domain)? {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        bail!("mxm daemon did not stop within 5 seconds")
     }
 
     pub fn print(config: Option<PathBuf>) -> Result<()> {
