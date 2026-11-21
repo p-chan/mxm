@@ -131,6 +131,13 @@ tail -f ~/Library/Logs/mxm.log
 
 When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. macOS keeps the permission per executable path, and release binaries are signed with a Developer ID, so it carries over when `mxm service install` replaces the copy with an updated `mxm`, however you installed it (e.g. mise installs each version into a different directory).
 
+With [mise](https://mise.jdx.dev/), a `postinstall` command can update the copy whenever mise installs a new version:
+
+```toml
+[tools]
+"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service install" }
+```
+
 Other platforms are not supported by `mxm service` yet; run `mxm daemon` with your service manager (e.g. a systemd user service on Linux).
 
 ## Notes

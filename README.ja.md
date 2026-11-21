@@ -131,6 +131,13 @@ tail -f ~/Library/Logs/mxm.log
 
 launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。macOS は権限を実行ファイルのパスごとに管理します。リリースのバイナリは Developer ID で署名しているので、`mxm service install` がアップデートした `mxm` でコピーを置き換えても、権限は引き継がれます。インストール方法は問いません（たとえば mise はバージョンごとに別のディレクトリに入れます）。
 
+[mise](https://mise.jdx.dev/) で入れるなら、`postinstall` を使うと、mise が新しいバージョンを入れるたびにコピーを更新できます。
+
+```toml
+[tools]
+"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service install" }
+```
+
 macOS 以外では、まだ `mxm service` に対応していません。`mxm daemon` を各 OS のサービス管理（Linux なら systemd のユーザーサービスなど）から起動してください。
 
 ## 注意
