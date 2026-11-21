@@ -130,7 +130,10 @@ mod platform {
     /// Copies the running `mxm` to `dest`, through a temporary file renamed into place
     fn copy_self(dest: &Path) -> Result<()> {
         let src = std::env::current_exe().context("Cannot find the running mxm")?;
-        if std::fs::canonicalize(&src).ok() == std::fs::canonicalize(dest).ok() {
+        // Skip when running the copy itself
+        if let (Ok(a), Ok(b)) = (std::fs::canonicalize(&src), std::fs::canonicalize(dest))
+            && a == b
+        {
             return Ok(());
         }
         let dir = dest.parent().context("Invalid path for the daemon")?;
