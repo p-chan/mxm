@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.0](https://github.com/p-chan/mxm/compare/v0.2.0...v0.3.0)
+
+### Added
+
+- run the service from a copy of mxm at a fixed path ([#14](https://github.com/p-chan/mxm/pull/14))
+
 ## [v0.2.0](https://github.com/p-chan/mxm/compare/v0.1.0...v0.2.0)
 
 ### Added
