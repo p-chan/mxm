@@ -58,9 +58,15 @@ fn plist(exe: &Path, config: Option<&Path>, log: &Path) -> String {
     )
 }
 
-/// Makes a `--config` path absolute, since launchd does not start in the current directory
-fn absolute_config(config: Option<PathBuf>) -> Result<Option<PathBuf>> {
-    config.map(|c| Ok(std::path::absolute(&c)?)).transpose()
+/// The config path for the daemon, as an absolute path. Without `--config`, the default path is
+/// resolved now, because launchd does not pass the shell's environment (e.g. `XDG_CONFIG_HOME`)
+/// or current directory to the daemon
+fn absolute_config(config: Option<PathBuf>) -> Result<PathBuf> {
+    let path = match config {
+        Some(c) => c,
+        None => crate::config::default_path()?,
+    };
+    Ok(std::path::absolute(path)?)
 }
 
 #[cfg(target_os = "macos")]
@@ -109,8 +115,20 @@ mod platform {
             .success())
     }
 
+    /// Not canonicalized, so that a stable symlink keeps working after the target is updated
     fn exe() -> Result<PathBuf> {
-        Ok(std::env::current_exe()?.canonicalize()?)
+        Ok(std::env::current_exe()?)
+    }
+
+    fn bootout(domain: &str) -> Result<()> {
+        let out = launchctl(&["bootout", &format!("{domain}/{LABEL}")])?;
+        if !out.status.success() {
+            bail!(
+                "launchctl bootout failed: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Ok(())
     }
 
     pub fn print(config: Option<PathBuf>) -> Result<()> {
@@ -130,7 +148,7 @@ mod platform {
         let domain = domain()?;
         // Reload so that a changed executable path or config takes effect
         if is_loaded(&domain)? {
-            launchctl(&["bootout", &format!("{domain}/{LABEL}")])?;
+            bootout(&domain)?;
         }
         let out = launchctl(&["bootstrap", &domain, &path.display().to_string()])?;
         if !out.status.success() {
@@ -150,8 +168,9 @@ mod platform {
 
     pub fn uninstall() -> Result<()> {
         let domain = domain()?;
+        // Keep the plist if the daemon could not be stopped, so that uninstall can be retried
         if is_loaded(&domain)? {
-            launchctl(&["bootout", &format!("{domain}/{LABEL}")])?;
+            bootout(&domain)?;
         }
         let path = plist_path()?;
         match std::fs::remove_file(&path) {
@@ -220,7 +239,7 @@ mod platform {
 }
 
 pub fn install(config: Option<PathBuf>, print_only: bool) -> Result<()> {
-    let config = absolute_config(config)?;
+    let config = Some(absolute_config(config)?);
     if print_only {
         platform::print(config)
     } else {
