@@ -5,3 +5,5 @@ git_tag_name = "v{{ version }}"
 # dist creates the GitHub Release with the binaries
 git_release_enable = false
 changelog_path = "./CHANGELOG.md"
+# Release only when the release PR is merged, not whenever the version in Cargo.toml changes
+release_always = false
