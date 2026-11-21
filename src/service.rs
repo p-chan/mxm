@@ -135,12 +135,18 @@ mod platform {
         }
         let dir = dest.parent().context("Invalid path for the daemon")?;
         std::fs::create_dir_all(dir)?;
-        let tmp = dir.join(".mxm.tmp");
-        std::fs::copy(&src, &tmp)
-            .with_context(|| format!("Cannot copy {} to {}", src.display(), tmp.display()))?;
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?;
-        std::fs::rename(&tmp, dest).with_context(|| format!("Cannot write {}", dest.display()))?;
-        Ok(())
+        // Unique per process, so that concurrent installs do not write to the same file
+        let tmp = dir.join(format!(".mxm.{}.tmp", std::process::id()));
+        let result = (|| {
+            std::fs::copy(&src, &tmp)
+                .with_context(|| format!("Cannot copy {} to {}", src.display(), tmp.display()))?;
+            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?;
+            std::fs::rename(&tmp, dest).with_context(|| format!("Cannot write {}", dest.display()))
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&tmp);
+        }
+        result
     }
 
     /// Whether the installed copy differs from the running `mxm`
@@ -170,16 +176,18 @@ mod platform {
         let path = plist_path()?;
         let log = log_path()?;
         let domain = domain()?;
-        // Stop the running daemon first, so that the new copy and config take effect
-        if is_loaded(&domain)? {
-            bootout(&domain)?;
-        }
+        // Prepare the copy and the plist before stopping the running daemon, so that a failure
+        // leaves it running. Replacing the copy by rename does not affect the running process
         copy_self(&exe)?;
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
         std::fs::write(&path, plist(&exe, config.as_deref(), &log))
             .with_context(|| format!("Cannot write {}", path.display()))?;
+        // Reload so that the new copy and config take effect
+        if is_loaded(&domain)? {
+            bootout(&domain)?;
+        }
         let out = launchctl(&["bootstrap", &domain, &path.display().to_string()])?;
         if !out.status.success() {
             bail!(
@@ -253,7 +261,9 @@ mod platform {
         }
         let exe = daemon_exe()?;
         println!("Daemon:    {}", exe.display());
-        if is_outdated(&exe) == Some(true) {
+        if !exe.exists() {
+            println!("           missing (run `mxm service install` again)");
+        } else if is_outdated(&exe) == Some(true) {
             println!("           differs from this mxm (run `mxm service install` to update)");
         }
         println!("Log:       {}", log_path()?.display());
