@@ -127,7 +127,7 @@ mxm service uninstall     # 止めて登録を解除する
 tail -f ~/Library/Logs/mxm.log
 ```
 
-`mxm service install` は、実行中の `mxm` の実行ファイルを指す `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ `~/.config/mxm/config.toml`）。設定ファイルのパスや実行ファイルの場所を変えたら、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。
+`mxm service install` は、実行中の `mxm` の実行ファイルを指す `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ既定の `~/.config/mxm/config.toml`。`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）。設定ファイルのパスや実行ファイルの場所を変えたら、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。
 
 launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。
 

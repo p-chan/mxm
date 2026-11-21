@@ -127,7 +127,7 @@ mxm service uninstall     # stop and unregister it
 tail -f ~/Library/Logs/mxm.log
 ```
 
-`mxm service install` writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` pointing at the running `mxm` executable. The config path is fixed when you run it (`~/.config/mxm/config.toml` unless `--config <path>` is given); run it again after changing either. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead.
+`mxm service install` writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` pointing at the running `mxm` executable. The config path is fixed when you run it (the default `~/.config/mxm/config.toml`, or `$XDG_CONFIG_HOME/mxm/config.toml` if it is set, unless `--config <path>` is given); run it again after changing either. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead.
 
 When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it.
 
