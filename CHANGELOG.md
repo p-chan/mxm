@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.2.0](https://github.com/p-chan/mxm/compare/v0.1.0...v0.2.0)
+
+### Added
+
+- sign macOS release binaries with Developer ID ([#11](https://github.com/p-chan/mxm/pull/11))
+
+### Other
+
+- bump the minor version for features in 0.x ([#13](https://github.com/p-chan/mxm/pull/13))
+- use v-prefixed changelog headings without dates ([#9](https://github.com/p-chan/mxm/pull/9))
+- open release PRs only for feat and fix commits ([#10](https://github.com/p-chan/mxm/pull/10))
+
 ## [v0.1.0](https://github.com/p-chan/mxm/releases/tag/v0.1.0)
 
 ### Added
