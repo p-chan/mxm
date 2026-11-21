@@ -127,9 +127,9 @@ mxm service uninstall     # 止めて登録を解除する
 tail -f ~/Library/Logs/mxm.log
 ```
 
-`mxm service install` は、実行中の `mxm` の実行ファイルを指す `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ既定の `~/.config/mxm/config.toml`。`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）。設定ファイルのパスや実行ファイルの場所を変えたら、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。
+`mxm service install` は、実行中の `mxm` を `~/Library/Application Support/mxm/mxm` にコピーし、そのコピーを起動する `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。`mxm` をアップデートしたら、もう一度実行してコピーを更新してください（コピーが手元の `mxm` と違うときは `mxm service status` が知らせます）。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ既定の `~/.config/mxm/config.toml`。`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）。設定ファイルのパスを変えたときも、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。書き出した plist は上のパスのコピーを起動しますが、`--print` はコピーを作りません。
 
-launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。リリースのバイナリは Developer ID で署名しているので、`mxm` をアップデートしても権限は引き継がれます。
+launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。macOS は権限を実行ファイルのパスごとに管理します。リリースのバイナリは Developer ID で署名しているので、`mxm service install` がアップデートした `mxm` でコピーを置き換えても、権限は引き継がれます。インストール方法は問いません（たとえば mise はバージョンごとに別のディレクトリに入れます）。
 
 macOS 以外では、まだ `mxm service` に対応していません。`mxm daemon` を各 OS のサービス管理（Linux なら systemd のユーザーサービスなど）から起動してください。
 
