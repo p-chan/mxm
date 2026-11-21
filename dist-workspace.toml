@@ -19,6 +19,8 @@ hosting = "github"
 install-updater = false
 # Started by release-plz with workflow_dispatch after it tags a release
 dispatch-releases = true
+# Sign macOS binaries with the Developer ID certificate in the CODESIGN_* secrets
+macos-sign = true
 
 # Pin the GitHub Actions used by the generated workflow to commit SHAs
 [dist.github-action-commits]
