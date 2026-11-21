@@ -5,7 +5,6 @@ edition = "2024"
 description = "Configuration tool for Logitech MX Master mice (HID++ 2.0)"
 license = "MIT"
 repository = "https://github.com/p-chan/mxm"
-homepage = "https://github.com/p-chan/mxm"
 publish = false
 
 [[bin]]
