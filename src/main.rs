@@ -8,6 +8,7 @@ mod device;
 mod discover;
 mod features;
 mod hidpp;
+mod service;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -135,6 +136,28 @@ enum Command {
         #[arg(long)]
         config: Option<std::path::PathBuf>,
     },
+    /// Run `mxm daemon` at login (macOS: LaunchAgent)
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ServiceAction {
+    /// Register `mxm daemon` to start at login, and start it now
+    Install {
+        /// Config file for the daemon (default: ~/.config/mxm/config.toml)
+        #[arg(long)]
+        config: Option<std::path::PathBuf>,
+        /// Only print the service definition (e.g. to manage it in dotfiles)
+        #[arg(long)]
+        print: bool,
+    },
+    /// Stop `mxm daemon` and unregister it
+    Uninstall,
+    /// Show whether `mxm daemon` is registered and running
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -195,6 +218,13 @@ impl App {
                 let path = config.map_or_else(config::default_path, Ok)?;
                 return self.apply(&path);
             }
+            Command::Service { action } => {
+                return match action {
+                    ServiceAction::Install { config, print } => service::install(config, print),
+                    ServiceAction::Uninstall => service::uninstall(),
+                    ServiceAction::Status => service::status(),
+                };
+            }
             Command::Daemon { config } => {
                 let path = config.map_or_else(config::default_path, Ok)?;
                 return daemon::run(&mut self.api, &path, self.trace);
@@ -214,7 +244,10 @@ impl App {
         let mut d = self.open()?;
         let d = &mut d;
         match command {
-            Command::List | Command::Apply { .. } | Command::Daemon { .. } => unreachable!(),
+            Command::List
+            | Command::Apply { .. }
+            | Command::Daemon { .. }
+            | Command::Service { .. } => unreachable!(),
             Command::Info => {
                 let name = device::get_name(d)?;
                 let info = device::get_device_info(d)?;
