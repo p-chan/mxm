@@ -10,6 +10,9 @@ release_always = false
 # Open a release PR only for user-facing changes (feat / fix, including breaking ones).
 # Other commits are still listed in the changelog of the next release.
 release_commits = "^(feat|fix)(\\(.+\\))?!?:"
+# Bump the minor version for features even in 0.x, so the version tells features from fixes.
+# mxm is a binary nobody depends on, so Cargo's 0.x compatibility rule does not matter.
+features_always_increment_minor = true
 
 # The default template of release-plz, except that the heading is `v<version>` without a date.
 # dist uses the heading as the title of the GitHub Release, so it matches the tag.
