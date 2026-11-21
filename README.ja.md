@@ -11,10 +11,18 @@ Logitech MX Master シリーズのマウスの設定を、HID++ 2.0 プロトコ
 ## 動作環境
 
 - macOS（Linux / Windows でも [hidapi](https://crates.io/crates/hidapi) が動けば動作する見込みですが未検証です）
-- Rust（ビルド時のみ）
+- Rust（ソースからビルドするときのみ）
 - MX Master シリーズのマウスを Bluetooth または Logi Bolt レシーバーで接続（動作確認は MX Master 4 と MX Master 3S。MX Master 3S の触覚フィードバックのように機種にない機能は、エラーになります）
 
 ## セットアップ
+
+[GitHub Releases](https://github.com/p-chan/mxm/releases) から、macOS（Apple Silicon / Intel）向けのビルド済みバイナリをインストールします。
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/p-chan/mxm/releases/latest/download/mxm-installer.sh | sh   # ~/.local/bin/mxm にインストール
+```
+
+アップデートするときも、同じコマンドを実行します。ソースからビルドする場合は次のとおりです。
 
 ```sh
 cargo install --path .   # ~/.cargo/bin/mxm にインストール
@@ -112,7 +120,7 @@ mxm daemon                  # 常駐して、接続のたびに設定ファイ�
 
 ### ログイン時に起動する（macOS）
 
-次の内容を `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` に保存します。`YOU` は自分のユーザー名に置き換えてください。
+次の内容を `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` に保存します。`YOU` は自分のユーザー名に置き換えてください（ソースからビルドした場合は、パスを `~/.cargo/bin/mxm` にします）。
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -123,7 +131,7 @@ mxm daemon                  # 常駐して、接続のたびに設定ファイ�
   <string>io.github.p-chan.mxm</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/YOU/.cargo/bin/mxm</string>
+    <string>/Users/YOU/.local/bin/mxm</string>
     <string>daemon</string>
   </array>
   <key>RunAtLoad</key>
@@ -142,7 +150,7 @@ tail -f /tmp/mxm.log                                                            
 launchctl bootout gui/$(id -u)/io.github.p-chan.mxm                                  # 止める
 ```
 
-launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。システム設定 → プライバシーとセキュリティ → 入力監視 に `~/.cargo/bin/mxm` を追加してください。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。
+launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。システム設定 → プライバシーとセキュリティ → 入力監視 に `~/.local/bin/mxm`（ソースからビルドした場合は `~/.cargo/bin/mxm`）を追加してください。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。
 
 ## 注意
 

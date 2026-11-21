@@ -5,11 +5,16 @@ edition = "2024"
 description = "Configuration tool for Logitech MX Master mice (HID++ 2.0)"
 license = "MIT"
 repository = "https://github.com/p-chan/mxm"
+homepage = "https://github.com/p-chan/mxm"
 publish = false
 
 [[bin]]
 name = "mxm"
 path = "src/main.rs"
+
+[package.metadata.dist]
+# Not published to crates.io, but released as binaries
+dist = true
 
 [dependencies]
 anyhow = "1.0.104"
@@ -19,3 +24,8 @@ hidapi = "2.6.7"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 toml = "1.2.1"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
