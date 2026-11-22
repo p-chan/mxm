@@ -547,15 +547,25 @@ mod platform {
         ) -> CFTypeRef;
         fn CGEventSetIntegerValueField(event: CFTypeRef, field: u32, value: i64);
         fn CGEventPost(tap: u32, event: CFTypeRef);
-        fn CGPreflightPostEventAccess() -> bool;
         fn CGRequestPostEventAccess() -> bool;
         fn CGMainDisplayID() -> u32;
         fn CGDisplayIsAsleep(display: u32) -> u32;
     }
 
+    #[link(name = "ApplicationServices", kind = "framework")]
+    unsafe extern "C" {
+        fn AXIsProcessTrusted() -> u8;
+    }
+
     #[link(name = "CoreFoundation", kind = "framework")]
     unsafe extern "C" {
         fn CFRelease(cf: CFTypeRef);
+        fn CFRunLoopRunInMode(
+            mode: CFTypeRef,
+            seconds: f64,
+            return_after_source_handled: u8,
+        ) -> i32;
+        static kCFRunLoopDefaultMode: CFTypeRef;
     }
 
     /// Posts a continuous (pixel) scroll at the pointer. Positive: content moves down / right
@@ -594,8 +604,20 @@ mod platform {
         unsafe { CGDisplayIsAsleep(CGMainDisplayID()) != 0 }
     }
 
+    /// `CGPreflightPostEventAccess` keeps its first answer for the life of the process, so the
+    /// daemon would never see the permission granted. `AXIsProcessTrusted` follows changes, but
+    /// only after a notification on the main run loop, which the daemon does not run otherwise;
+    /// running it once without waiting delivers the pending ones (call this on the main thread)
     pub fn has_permission(prompt: bool) -> bool {
-        unsafe { CGPreflightPostEventAccess() || (prompt && CGRequestPostEventAccess()) }
+        unsafe {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.0, 0);
+            let trusted = AXIsProcessTrusted() != 0;
+            if !trusted && prompt {
+                // Shows the prompt (once per process)
+                CGRequestPostEventAccess();
+            }
+            trusted
+        }
     }
 }
 
