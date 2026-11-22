@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.4.1](https://github.com/p-chan/mxm/compare/v0.4.0...v0.4.1)
+
+### Fixed
+
+- notice the Accessibility permission granted while the daemon runs ([#19](https://github.com/p-chan/mxm/pull/19))
+- don't panic when `mxm service` output is cut off ([#18](https://github.com/p-chan/mxm/pull/18))
+
 ## [v0.4.0](https://github.com/p-chan/mxm/compare/v0.3.0...v0.4.0)
 
 ### Added
