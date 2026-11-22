@@ -219,6 +219,40 @@ In HostsInfo `0x1815` fn 1 getHostInfo, the third byte appears to be the bus typ
 - DeviceInfo fn 2: serial number (12 ASCII characters)
 - DeviceName fn 0: length of the name; fn 1 (offset): part of the name; fn 2: device type (`3` = mouse)
 
+## Software scrolling of Logi Options+ (macOS)
+
+`mxm daemon` scrolls the way Logi Options+ 2.x does on macOS. The steps below reproduce recordings of Options+ with an MX Master 4 over Bluetooth: the HID++ input of each wheel and the scroll events Options+ posted, replayed event by event. For the main wheel 95-98% of the replayed events are within 1 pixel of Options+ and the totals within ±1.2% at speeds 0, 50, 85 and 100%. For the thumb wheel the total is within 5% at 100%.
+
+Options+ talks HID++ to a Bluetooth mouse over the Logitech GATT service `00010000-0000-1000-8000-011F2000046D` (characteristic `00010001-…`, notify), not over the HID interface, so diverted-wheel notifications it caused do not reach other HID clients. Options+ stores the scroll speed in its settings as `(percent - 50) / 50`.
+
+### Main wheel
+
+Options+ always diverts the main wheel, in high resolution (15 units per notch) with smooth scrolling on and in low resolution (1 unit per notch) without. Each notification of `n` periods is processed `n` times with the same `delta`, and each pass posts one event at once:
+
+1. Direction hysteresis (high resolution only): counters for each direction swallow the first units after the wheel turns the other way. They hold at most 1 unit in ratchet mode (4 in free spin), and after the wheel rests for whole seconds they move back to 1 (4) by one per second. Turning one way fills the counter of the other way; turning the other way first spends it.
+2. `inches = units / multiplier × 7/54` (one notch is 7/54 inch).
+3. `dt` = time since the previous notification / `n`, kept within 0.008-0.1 s. A pause of 0.1 s or more resets the smoothed speed.
+4. `speed = inches / dt`; `smoothed = 0.95 × smoothed + 0.05 × |speed|`.
+5. Gain: piecewise linear in `smoothed` through (0, 1), (0.3, 1), (0.6, 1 + 11s), (60, 1 + 11s), (120, 1 + 5s), where `s = 0.06 + 1.14 × percent / 100`. The plateau is 1.44 px/unit at 0%, 6.85 at 50%, 10.65 at 85% and 12.28 at 100% (measured).
+6. `pixels = inches × gain × 100`.
+
+### Thumb wheel
+
+Options+ always diverts the thumb wheel too, and scrolls it with a 16.6 ms timer that repeats the last movement:
+
+- `m = 2^(4 × percent / 100 - 1)` (0.5 at 0%, 8 at 100%); `rotation` is the last reported rotation.
+- A gesture starts with the first rotation and ends on status `3` (stop) or `0`, after one more event. A level `L` starts at 1; each new report raises it by `(1 - L) × 0.3`. After 7 ticks without a report it shrinks by ×0.15 per tick and the gesture ends below 0.01.
+- Each tick: `v = m × rotation × L / (360 × 0.0166)` inches/s; `smoothed` follows `v` at once when `|v|` is larger, else `0.99 × smoothed + 0.01 × v`; gain piecewise linear in `|smoothed|` through (0, 4), (0.3, 8), (20, 30), (100, 4); `pixels = gain × v × 100 × 0.0166`. At 100% one unit gives 20.4 px per tick (20-21 measured).
+- Options+ also posts a "swipe between pages" gesture from the thumb wheel and drops scroll events while that gesture dominates, which reduces scrolling at low speeds (about 15% at 0%). mxm does not post the gesture.
+
+### Posted events
+
+Both wheels post continuous scroll events (`CGEventCreateScrollWheelEvent2` in pixels) opposite to the reported movement; the direction setting of Options+ is the `invert` bit of the device.
+
+- Pixels (fields 96/97): the fraction of a pixel carries over to the next event, and the integer part (toward zero) is posted. No event is posted while it is 0. A thumb wheel gesture starts with no fraction.
+- Lines (fields 11/12) and fixed-point lines (93/94): the posted pixels and the wheel movement in inches add up per axis (reset when the direction changes). When an event moves 0.02 inch or more, or the movement adds up to more than 0.06 inch, the lines are the added pixels / 10 (truncated, at least ±1; the fixed-point value is rounded × 65536) and both sums start over; otherwise 0. In ratchet mode the main wheel movement counts in whole notches.
+- Scroll phase (99), momentum phase (123) and field 137 (`NSEvent.isDirectionInvertedFromDevice`) are 0.
+
 ## MX Master 3S
 
 Observed on an MX Master 3S (firmware RBM22.00_0003, connected via a Logi Bolt receiver, model ID `0xB034`). Everything else in this document applies unless listed here.

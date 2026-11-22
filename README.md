@@ -98,8 +98,8 @@ Write the settings in `~/.config/mxm/config.toml` (or `$XDG_CONFIG_HOME/mxm/conf
 [device."MX Master 4"]
 dpi = 1600
 smartshift = { mode = "ratchet", threshold = 12, torque = 75 }  # threshold = "off" disables SmartShift
-wheel = { hires = true, invert = false }
-thumbwheel = { invert = true }
+wheel = { hires = true, invert = false, speed = 85, smooth = true }  # speed and smooth: see below
+thumbwheel = { invert = true, speed = 50 }
 haptic = 60                 # 1-100, or "off"
 force = "default"           # press force of the haptic sense panel: a value, or "default"
 
@@ -118,6 +118,21 @@ mxm daemon                  # keep running and write the config on every connect
 
 `mxm daemon` writes the config when it starts, when a mouse connects over Bluetooth or through a Logi Bolt receiver, and when a mouse asks to be reconfigured after it is turned on. It reads the config file again each time, so edits take effect on the next connection. Settings a model lacks, such as haptic feedback on the MX Master 3S, are reported as "not supported" and skipped. Quit Logi Options+ while using it, as Options+ also writes its own settings on every connection.
 
+### Software scrolling (macOS)
+
+Like Logi Options+, `mxm daemon` diverts the wheels to HID++ and posts the scroll events itself, with the same acceleration as Options+ (see [PROTOCOL.md](PROTOCOL.md#software-scrolling-of-logi-options-macos)). The settings mean the same as in Options+:
+
+- `wheel.speed`: "Scrolling speed", `0`-`100` (default `50`). It sets how much fast spins are accelerated; slow scrolling stays the same.
+- `wheel.smooth`: "Smooth scrolling" (default `true`). `false` reports the wheel per notch (low resolution). In `mxm daemon` it takes the place of `hires`.
+- `thumbwheel.speed`: thumb wheel "Speed", `0`-`100` (default `50`).
+- The scroll direction is set by `invert` only, as with "Scroll direction" in Options+; the natural scrolling setting of macOS does not change it.
+
+`mxm apply` does not scroll, since nothing would scroll after it exits. Differences from Options+: the thumb wheel does not post the "swipe between pages" gesture (Options+ scrolls a little less at low thumb wheel speeds because of it), and in free spin the wheel is not muted right after a middle click.
+
+- Posting scroll events needs the Accessibility permission. Allow the executable that the log names in System Settings → Privacy & Security → Accessibility; the daemon starts software scrolling within a few seconds after that. Until then the wheels stay with the OS.
+- When the daemon stops (e.g. `mxm service uninstall`), it gives the wheels back to the OS. If it is killed or crashes instead, the wheels stay diverted and do not scroll until the mouse is turned off and on, or until `mxm wheel --divert off` and `mxm thumbwheel --divert off`. `mxm service install` restarts a daemon that exits.
+- Quit Logi Options+, which diverts the wheels too; with both running, every scroll is posted twice.
+
 ### Starting at login (macOS)
 
 ```sh
@@ -129,7 +144,7 @@ tail -f ~/Library/Logs/mxm.log
 
 `mxm service install` copies the running `mxm` to `~/Library/Application Support/mxm/mxm` and writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` that runs the copy. Run it again after updating `mxm` to update the copy (`mxm service status` tells when the copy is missing or differs from the `mxm` you run). The config path is fixed when you run it (the default `~/.config/mxm/config.toml`, or `$XDG_CONFIG_HOME/mxm/config.toml` if it is set, unless `--config <path>` is given); run it again after changing it. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead; it runs the copy at the path above, which `--print` does not create.
 
-When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. macOS keeps the permission per executable path, and release binaries are signed with a Developer ID, so it carries over when `mxm service install` replaces the copy with an updated `mxm`, however you installed it (e.g. mise installs each version into a different directory).
+When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. [Software scrolling](#software-scrolling-macos) also needs the Accessibility permission for the same executable. macOS keeps the permission per executable path, and release binaries are signed with a Developer ID, so it carries over when `mxm service install` replaces the copy with an updated `mxm`, however you installed it (e.g. mise installs each version into a different directory).
 
 With [mise](https://mise.jdx.dev/), a `postinstall` command can update the copy whenever mise installs a new version:
 
