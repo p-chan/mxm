@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use crate::controls::parse_control;
 use crate::device::{Threshold, WheelMode};
+use crate::scroll::{ThumbScroll, WheelScroll};
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -48,12 +49,58 @@ pub struct SmartShiftSettings {
 pub struct WheelSettings {
     pub hires: Option<bool>,
     pub invert: Option<bool>,
+    /// Scroll speed of `mxm daemon`, 0-100 (default 50)
+    pub speed: Option<Speed>,
+    /// High-resolution scrolling in `mxm daemon` (default true); overrides `hires` there
+    pub smooth: Option<bool>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ThumbWheelSettings {
     pub invert: Option<bool>,
+    /// Scroll speed of `mxm daemon`, 0-100 (default 50)
+    pub speed: Option<Speed>,
+}
+
+/// Scroll speed 0-100 (the "Scrolling speed" percentage of Logi Options+)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(try_from = "i64")]
+pub struct Speed(pub u8);
+
+impl TryFrom<i64> for Speed {
+    type Error = String;
+    fn try_from(v: i64) -> std::result::Result<Self, String> {
+        match v {
+            0..=100 => Ok(Self(v as u8)),
+            _ => Err("speed must be 0-100".into()),
+        }
+    }
+}
+
+/// Speed when none is written, as in Logi Options+
+const DEFAULT_SPEED: u8 = 50;
+
+impl Settings {
+    /// Software scrolling of the main wheel in `mxm daemon` (always on, as with Logi Options+)
+    pub fn wheel_scroll(&self) -> WheelScroll {
+        let w = self.wheel.clone().unwrap_or_default();
+        WheelScroll {
+            speed: w.speed.map_or(DEFAULT_SPEED, |s| s.0),
+            smooth: w.smooth.unwrap_or(true),
+        }
+    }
+
+    /// Software scrolling of the thumb wheel in `mxm daemon` (always on, as with Logi Options+)
+    pub fn thumb_scroll(&self) -> ThumbScroll {
+        ThumbScroll {
+            speed: self
+                .thumbwheel
+                .as_ref()
+                .and_then(|t| t.speed)
+                .map_or(DEFAULT_SPEED, |s| s.0),
+        }
+    }
 }
 
 /// A number, or a keyword such as "off" or "default"
@@ -181,10 +228,13 @@ impl Settings {
             wheel: merge_opt(&self.wheel, &over.wheel, |a, b| WheelSettings {
                 hires: b.hires.or(a.hires),
                 invert: b.invert.or(a.invert),
+                speed: b.speed.or(a.speed),
+                smooth: b.smooth.or(a.smooth),
             }),
             thumbwheel: merge_opt(&self.thumbwheel, &over.thumbwheel, |a, b| {
                 ThumbWheelSettings {
                     invert: b.invert.or(a.invert),
+                    speed: b.speed.or(a.speed),
                 }
             }),
             haptic: over.haptic.or(self.haptic),
@@ -266,6 +316,34 @@ buttons = { forward = "back" }
     }
 
     #[test]
+    fn scrolling_defaults_follow_options_plus() {
+        let settings = |toml: &str| {
+            parse(&format!("[device.\"M\"]\n{toml}"))
+                .unwrap()
+                .resolve("M", None)
+                .unwrap()
+        };
+        let s = settings("dpi = 1600");
+        assert_eq!(
+            s.wheel_scroll(),
+            WheelScroll {
+                speed: 50,
+                smooth: true
+            }
+        );
+        assert_eq!(s.thumb_scroll(), ThumbScroll { speed: 50 });
+        let s = settings("wheel = { speed = 85, smooth = false }\nthumbwheel = { speed = 0 }");
+        assert_eq!(
+            s.wheel_scroll(),
+            WheelScroll {
+                speed: 85,
+                smooth: false
+            }
+        );
+        assert_eq!(s.thumb_scroll(), ThumbScroll { speed: 0 });
+    }
+
+    #[test]
     fn serial_section_alone_is_enough() {
         let c = parse(SAMPLE).unwrap();
         let s = c.resolve("Some Other Mouse", Some("2616zalc66h8")).unwrap();
@@ -279,6 +357,8 @@ buttons = { forward = "back" }
         assert!(parse("[device.\"MX Master 4\"]\nhaptic = \"on\"").is_err());
         assert!(parse("[device.\"MX Master 4\"]\nsmartshift = { threshold = 255 }").is_err());
         assert!(parse("[device.\"MX Master 4\"]\nsmartshift = { mode = \"fast\" }").is_err());
+        assert!(parse("[device.\"MX Master 4\"]\nwheel = { speed = -1 }").is_err());
+        assert!(parse("[device.\"MX Master 4\"]\nthumbwheel = { speed = 101 }").is_err());
     }
 
     #[test]

@@ -213,6 +213,8 @@ mod platform {
         println!("To reach mice connected over Bluetooth, allow Input Monitoring for");
         println!("  {}", exe.display());
         println!("in System Settings > Privacy & Security > Input Monitoring.");
+        println!("For software scrolling, allow it in");
+        println!("System Settings > Privacy & Security > Accessibility as well.");
         println!("After updating mxm, run `mxm service install` again to update the daemon.");
         Ok(())
     }

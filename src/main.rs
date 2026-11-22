@@ -8,6 +8,7 @@ mod device;
 mod discover;
 mod features;
 mod hidpp;
+mod scroll;
 mod service;
 
 use std::sync::Arc;

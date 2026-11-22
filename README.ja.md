@@ -98,8 +98,8 @@ mxm dump                                # 読み取れる設定をすべて JSON
 [device."MX Master 4"]
 dpi = 1600
 smartshift = { mode = "ratchet", threshold = 12, torque = 75 }  # threshold = "off" で SmartShift を無効にする
-wheel = { hires = true, invert = false }
-thumbwheel = { invert = true }
+wheel = { hires = true, invert = false, speed = 85, smooth = true }  # speed と smooth は下を参照
+thumbwheel = { invert = true, speed = 50 }
 haptic = 60                 # 1〜100、または "off"
 force = "default"           # ハプティックセンスパネルの押下圧。値、または "default"
 
@@ -118,6 +118,21 @@ mxm daemon                  # 常駐して、接続のたびに設定ファイ�
 
 `mxm daemon` は、起動したとき、マウスが Bluetooth または Logi Bolt レシーバー経由で接続したとき、電源を入れたマウスが再設定を求めてきたときに、設定ファイルを書き込みます。設定ファイルは毎回読み直すので、編集した内容は次の接続から反映されます。MX Master 3S の触覚フィードバックのように機種にない設定は、「not supported」と表示して飛ばします。Logi Options+ も接続のたびに自分の設定を書き込むので、使うときは Options+ を終了してください。
 
+### ソフトウェアスクロール（macOS）
+
+`mxm daemon` は Logi Options+ と同じように、ホイールを HID++ に divert して、スクロールのイベントを自分で送ります。加速のしかたも Options+ と同じです（[PROTOCOL.md](PROTOCOL.md#software-scrolling-of-logi-options-macos) を参照）。設定の意味も Options+ と同じです。
+
+- `wheel.speed`：「スクロール速度」。`0`〜`100`（既定は `50`）。速く回したときの加速の強さを決めます。ゆっくり回したときの距離は変わりません。
+- `wheel.smooth`：「スムーズスクロール」（既定は `true`）。`false` にすると、ホイールを 1 ノッチ単位（低解像度）で扱います。`mxm daemon` では `hires` の代わりにこの値を使います。
+- `thumbwheel.speed`：サムホイールの「速度」。`0`〜`100`（既定は `50`）。
+- スクロールの向きは、Options+ の「スクロール方向」と同じく `invert` だけで決まります。macOS のナチュラルスクロールの設定では変わりません。
+
+`mxm apply` は終了するとスクロールを送れないので、スクロールは扱いません。Options+ との違いは 2 つです。サムホイールで「ページ間をスワイプ」のジェスチャーを送らないこと（Options+ はこのせいで、サムホイールの速度が低いときにスクロールが少し減ります）と、フリースピン中に中クリックした直後もホイールを止めないことです。
+
+- スクロールのイベントを送るには、アクセシビリティの権限が必要です。ログに表示される実行ファイルを、システム設定 → プライバシーとセキュリティ → アクセシビリティ で許可してください。許可すると、数秒以内にソフトウェアスクロールが始まります。それまでは、ホイールは OS がそのまま扱います。
+- daemon が止まるとき（`mxm service uninstall` など）は、ホイールを OS に戻します。強制終了やクラッシュで止まったときは divert されたままになり、マウスの電源を入れ直すか、`mxm wheel --divert off` と `mxm thumbwheel --divert off` を実行するまでスクロールしません。`mxm service install` で登録した daemon は、終了しても起動し直されます。
+- Logi Options+ もホイールを divert するので、終了してください。両方が動いていると、スクロールが 2 回ずつ送られます。
+
 ### ログイン時に起動する（macOS）
 
 ```sh
@@ -129,7 +144,7 @@ tail -f ~/Library/Logs/mxm.log
 
 `mxm service install` は、実行中の `mxm` を `~/Library/Application Support/mxm/mxm` にコピーし、そのコピーを起動する `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。`mxm` をアップデートしたら、もう一度実行してコピーを更新してください（コピーがないときや、手元の `mxm` と違うときは `mxm service status` が知らせます）。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ既定の `~/.config/mxm/config.toml`。`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）。設定ファイルのパスを変えたときも、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。書き出した plist は上のパスのコピーを起動しますが、`--print` はコピーを作りません。
 
-launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。macOS は権限を実行ファイルのパスごとに管理します。リリースのバイナリは Developer ID で署名しているので、`mxm service install` がアップデートした `mxm` でコピーを置き換えても、権限は引き継がれます。インストール方法は問いません（たとえば mise はバージョンごとに別のディレクトリに入れます）。
+launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。[ソフトウェアスクロール](#ソフトウェアスクロールmacos)には、同じ実行ファイルにアクセシビリティの権限も必要です。macOS は権限を実行ファイルのパスごとに管理します。リリースのバイナリは Developer ID で署名しているので、`mxm service install` がアップデートした `mxm` でコピーを置き換えても、権限は引き継がれます。インストール方法は問いません（たとえば mise はバージョンごとに別のディレクトリに入れます）。
 
 [mise](https://mise.jdx.dev/) で入れるなら、`postinstall` を使うと、mise が新しいバージョンを入れるたびにコピーを更新できます。
 
