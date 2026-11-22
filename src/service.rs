@@ -77,6 +77,7 @@ fn absolute_config(config: Option<PathBuf>) -> Result<PathBuf> {
 
 #[cfg(target_os = "macos")]
 mod platform {
+    use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
     use std::process::Command;
@@ -178,7 +179,8 @@ mod platform {
     }
 
     pub fn print(config: Option<PathBuf>) -> Result<()> {
-        print!("{}", plist(&daemon_exe()?, config.as_deref(), &log_path()?));
+        let plist = plist(&daemon_exe()?, config.as_deref(), &log_path()?);
+        write!(std::io::stdout().lock(), "{plist}")?;
         Ok(())
     }
 
@@ -206,16 +208,29 @@ mod platform {
                 String::from_utf8_lossy(&out.stderr).trim()
             );
         }
-        println!("Installed {} and started mxm daemon", path.display());
-        println!("Daemon: {}", exe.display());
-        println!("Log:    {}", log.display());
-        println!();
-        println!("To reach mice connected over Bluetooth, allow Input Monitoring for");
-        println!("  {}", exe.display());
-        println!("in System Settings > Privacy & Security > Input Monitoring.");
-        println!("For software scrolling, allow it in");
-        println!("System Settings > Privacy & Security > Accessibility as well.");
-        println!("After updating mxm, run `mxm service install` again to update the daemon.");
+        let mut out = std::io::stdout().lock();
+        writeln!(out, "Installed {} and started mxm daemon", path.display())?;
+        writeln!(out, "Daemon: {}", exe.display())?;
+        writeln!(out, "Log:    {}", log.display())?;
+        writeln!(out)?;
+        writeln!(
+            out,
+            "To reach mice connected over Bluetooth, allow Input Monitoring for"
+        )?;
+        writeln!(out, "  {}", exe.display())?;
+        writeln!(
+            out,
+            "in System Settings > Privacy & Security > Input Monitoring."
+        )?;
+        writeln!(out, "For software scrolling, allow it in")?;
+        writeln!(
+            out,
+            "System Settings > Privacy & Security > Accessibility as well."
+        )?;
+        writeln!(
+            out,
+            "After updating mxm, run `mxm service install` again to update the daemon."
+        )?;
         Ok(())
     }
 
@@ -226,17 +241,20 @@ mod platform {
             bootout(&domain)?;
         }
         let path = plist_path()?;
-        match std::fs::remove_file(&path) {
-            Ok(()) => println!("Stopped mxm daemon and removed {}", path.display()),
+        let mut out = std::io::stdout().lock();
+        // Finish removing before returning a write error (e.g. a closed pipe), so that uninstall
+        // is not left half done
+        let mut written = match std::fs::remove_file(&path) {
+            Ok(()) => writeln!(out, "Stopped mxm daemon and removed {}", path.display()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                println!("mxm service is not installed");
+                writeln!(out, "mxm service is not installed")
             }
             Err(e) => return Err(e.into()),
-        }
+        };
         let exe = daemon_exe()?;
         match std::fs::remove_file(&exe) {
             Ok(()) => {
-                println!("Removed {}", exe.display());
+                written = written.and(writeln!(out, "Removed {}", exe.display()));
                 if let Some(dir) = exe.parent() {
                     // Only succeeds when empty
                     let _ = std::fs::remove_dir(dir);
@@ -245,13 +263,14 @@ mod platform {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e.into()),
         }
-        Ok(())
+        Ok(written?)
     }
 
     pub fn status() -> Result<()> {
+        let mut stdout = std::io::stdout().lock();
         let path = plist_path()?;
         if !path.exists() {
-            println!("Not installed");
+            writeln!(stdout, "Not installed")?;
             return Ok(());
         }
         let out = launchctl(&["print", &format!("{}/{LABEL}", domain()?)])?;
@@ -262,24 +281,33 @@ mod platform {
                 .find_map(|l| l.strip_prefix(name)?.strip_prefix(" = "))
                 .map(str::to_string)
         };
-        println!("Installed: {}", path.display());
+        writeln!(stdout, "Installed: {}", path.display())?;
         if out.status.success() {
             let state = field("state").unwrap_or_else(|| "unknown".into());
             match field("pid") {
-                Some(pid) => println!("State:     {state} (pid {pid})"),
-                None => println!("State:     {state}"),
+                Some(pid) => writeln!(stdout, "State:     {state} (pid {pid})")?,
+                None => writeln!(stdout, "State:     {state}")?,
             }
         } else {
-            println!("State:     not loaded (run `mxm service install` again)");
+            writeln!(
+                stdout,
+                "State:     not loaded (run `mxm service install` again)"
+            )?;
         }
         let exe = daemon_exe()?;
-        println!("Daemon:    {}", exe.display());
+        writeln!(stdout, "Daemon:    {}", exe.display())?;
         if !exe.exists() {
-            println!("           missing (run `mxm service install` again)");
+            writeln!(
+                stdout,
+                "           missing (run `mxm service install` again)"
+            )?;
         } else if is_outdated(&exe) == Some(true) {
-            println!("           differs from this mxm (run `mxm service install` to update)");
+            writeln!(
+                stdout,
+                "           differs from this mxm (run `mxm service install` to update)"
+            )?;
         }
-        println!("Log:       {}", log_path()?.display());
+        writeln!(stdout, "Log:       {}", log_path()?.display())?;
         Ok(())
     }
 }
