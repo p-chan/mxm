@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-A command-line tool that reads and writes the settings of Logitech MX Master mice directly over the HID++ 2.0 protocol. It has been tested on the MX Master 4 and MX Master 3S. Change DPI, SmartShift, the scroll wheels, haptic feedback, button mappings and more without Logi Options+.
+mxm is a CLI and daemon for configuring Logitech MX Master mice directly over the HID++ 2.0 protocol. Change DPI, SmartShift, the scroll wheels, haptic feedback, button mappings and more without Logi Options+. Write your settings in a config file and apply them once, or have the daemon reapply them whenever a mouse connects. On macOS, `mxm service` starts the daemon at login, and the daemon scrolls the wheels with the same acceleration as Logi Options+. It has been tested on the MX Master 4 and MX Master 3S.
 
 This is an unofficial project and is not affiliated with Logitech.
 

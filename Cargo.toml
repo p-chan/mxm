@@ -2,7 +2,7 @@
 name = "mxm"
 version = "0.4.1"
 edition = "2024"
-description = "Configuration tool for Logitech MX Master mice (HID++ 2.0)"
+description = "CLI and daemon for configuring Logitech MX Master mice, with Options+-style scrolling on macOS"
 license = "MIT"
 repository = "https://github.com/p-chan/mxm"
 publish = false
