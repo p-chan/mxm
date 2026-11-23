@@ -1,0 +1,4 @@
+# Steps that dist runs before `dist build`. The signing step of dist passes
+# CODESIGN_OPTIONS to `codesign --options`.
+- name: Sign with the Hardened Runtime
+  run: echo "CODESIGN_OPTIONS=runtime" >> "$GITHUB_ENV"

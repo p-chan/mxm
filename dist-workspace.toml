@@ -21,6 +21,10 @@ install-updater = false
 dispatch-releases = true
 # Sign macOS binaries with the Developer ID certificate in the CODESIGN_* secrets
 macos-sign = true
+# Sign with the Hardened Runtime, which notarization requires
+github-build-setup = "../build-setup.yml"
+# Notarize the macOS binaries. The release is only published if it succeeds
+global-artifacts-jobs = ["./notarize"]
 
 # Pin the GitHub Actions used by the generated workflow to commit SHAs
 [dist.github-action-commits]
