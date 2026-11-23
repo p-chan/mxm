@@ -152,7 +152,7 @@ Like Logi Options+, `mxm daemon` diverts the wheels to HID++ and posts the scrol
 - `thumbwheel.speed`: thumb wheel "Speed", `0`-`100` (default `50`).
 - The scroll direction is set by `invert` only, as with "Scroll direction" in Options+; the natural scrolling setting of macOS does not change it.
 
-`mxm apply` does not scroll, since nothing would scroll after it exits. Differences from Options+: the thumb wheel does not post the "swipe between pages" gesture (Options+ scrolls a little less at low thumb wheel speeds because of it), and in free spin the wheel is not muted right after a middle click.
+`mxm apply` does not scroll, since nothing would scroll after it exits. Differences from Options+: at low thumb wheel speeds Options+ drops a little scrolling for its "swipe between pages" gesture, and in free spin it mutes the wheel right after a middle click; mxm does neither.
 
 - Posting scroll events needs the Accessibility permission. Allow the executable that the log names in System Settings → Privacy & Security → Accessibility; the daemon starts software scrolling within a few seconds after that. Until then the wheels stay with the OS.
 - When the daemon stops (e.g. `mxm service uninstall`), it gives the wheels back to the OS. If it is killed or crashes instead, the wheels stay diverted and do not scroll until the mouse is turned off and on, or until `mxm wheel --divert off` and `mxm thumbwheel --divert off`. `mxm service install` restarts a daemon that exits.
