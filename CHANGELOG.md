@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.1](https://github.com/p-chan/mxm/compare/v0.6.0...v0.6.1)
+
+### Fixed
+
+- let `mxm service update` work from Homebrew cask install steps ([#28](https://github.com/p-chan/mxm/pull/28))
+
+### Other
+
+- register the daemon from mise with `mxm service install` ([#27](https://github.com/p-chan/mxm/pull/27))
+
 ## [v0.6.0](https://github.com/p-chan/mxm/compare/v0.5.0...v0.6.0)
 
 ### Added
