@@ -82,12 +82,37 @@ mod platform {
     use std::path::{Path, PathBuf};
     use std::process::Command;
 
-    use anyhow::{Context, Result, anyhow, bail};
+    use anyhow::{Context, Result, bail};
 
     use super::{LABEL, plist};
 
+    /// The home directory from the user database rather than `$HOME`, because launchd looks for
+    /// LaunchAgents there, and Homebrew runs cask install steps with `$HOME` set to a temporary
+    /// directory
     fn home() -> Result<PathBuf> {
-        std::env::home_dir().ok_or_else(|| anyhow!("Cannot find the home directory"))
+        use std::ffi::{CStr, OsStr};
+        use std::os::unix::ffi::OsStrExt;
+
+        let mut buf = vec![0 as libc::c_char; 4096];
+        // SAFETY: `passwd` is plain data, and getpwuid_r only writes into `pwd` and `buf`
+        let mut pwd: libc::passwd = unsafe { std::mem::zeroed() };
+        let mut result = std::ptr::null_mut();
+        // SAFETY: the pointers are valid for the given lengths for the duration of the call
+        let rc = unsafe {
+            libc::getpwuid_r(
+                libc::getuid(),
+                &mut pwd,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut result,
+            )
+        };
+        if rc != 0 || result.is_null() || pwd.pw_dir.is_null() {
+            bail!("Cannot find the home directory");
+        }
+        // SAFETY: on success, `pw_dir` points to a NUL-terminated string in `buf`
+        let dir = unsafe { CStr::from_ptr(pwd.pw_dir) };
+        Ok(PathBuf::from(OsStr::from_bytes(dir.to_bytes())))
     }
 
     fn plist_path() -> Result<PathBuf> {
@@ -178,6 +203,19 @@ mod platform {
         bail!("mxm daemon did not stop within 5 seconds")
     }
 
+    /// Restarts the loaded daemon with the same plist, so that it runs the current copy.
+    /// Unlike `bootstrap`, this works from Homebrew's sandbox for cask install steps
+    fn restart(domain: &str) -> Result<()> {
+        let out = launchctl(&["kickstart", "-k", &format!("{domain}/{LABEL}")])?;
+        if !out.status.success() {
+            bail!(
+                "launchctl kickstart failed: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Ok(())
+    }
+
     /// Stops the daemon if it is loaded, and starts it again from the plist at `path`
     fn reload(domain: &str, path: &Path) -> Result<()> {
         if is_loaded(domain)? {
@@ -259,7 +297,7 @@ mod platform {
         copy_self(&exe)?;
         let domain = domain()?;
         if is_loaded(&domain)? {
-            reload(&domain, &path)?;
+            restart(&domain)?;
             writeln!(out, "Updated {} and restarted mxm daemon", exe.display())?;
         } else {
             writeln!(out, "Updated {}", exe.display())?;
