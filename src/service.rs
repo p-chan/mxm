@@ -170,12 +170,39 @@ mod platform {
             std::fs::copy(&src, &tmp)
                 .with_context(|| format!("Cannot copy {} to {}", src.display(), tmp.display()))?;
             std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?;
+            remove_quarantine(&tmp)?;
             std::fs::rename(&tmp, dest).with_context(|| format!("Cannot write {}", dest.display()))
         })();
         if result.is_err() {
             let _ = std::fs::remove_file(&tmp);
         }
         result
+    }
+
+    /// Removes the quarantine attribute from the copy. It is the same signed and notarized `mxm`
+    /// that is running, but a copy made from a Homebrew cask is quarantined, and launchd starting
+    /// it shows the "downloaded from the Internet" dialog after every update
+    fn remove_quarantine(path: &Path) -> Result<()> {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+
+        let c_path = CString::new(path.as_os_str().as_bytes())?;
+        // SAFETY: both strings are NUL-terminated and outlive the call
+        let rc = unsafe {
+            libc::removexattr(
+                c_path.as_ptr(),
+                c"com.apple.quarantine".as_ptr(),
+                libc::XATTR_NOFOLLOW,
+            )
+        };
+        if rc != 0 {
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() != Some(libc::ENOATTR) {
+                return Err(err)
+                    .with_context(|| format!("Cannot remove quarantine from {}", path.display()));
+            }
+        }
+        Ok(())
     }
 
     /// Whether the installed copy differs from the running `mxm`
@@ -384,6 +411,41 @@ mod platform {
         }
         writeln!(stdout, "Log:       {}", log_path()?.display())?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn quarantine(path: &Path) -> Option<String> {
+            let out = Command::new("/usr/bin/xattr")
+                .args(["-p", "com.apple.quarantine"])
+                .arg(path)
+                .output()
+                .unwrap();
+            out.status
+                .success()
+                .then(|| String::from_utf8(out.stdout).unwrap())
+        }
+
+        #[test]
+        fn remove_quarantine_removes_the_attribute_and_allows_its_absence() {
+            let path = std::env::temp_dir().join(format!("mxm-quarantine-{}", std::process::id()));
+            std::fs::write(&path, b"mxm").unwrap();
+            let status = Command::new("/usr/bin/xattr")
+                .args(["-w", "com.apple.quarantine", "0181;00000000;test;"])
+                .arg(&path)
+                .status()
+                .unwrap();
+            assert!(status.success());
+            assert!(quarantine(&path).is_some());
+
+            remove_quarantine(&path).unwrap();
+            assert_eq!(quarantine(&path), None);
+            remove_quarantine(&path).unwrap();
+
+            std::fs::remove_file(&path).unwrap();
+        }
     }
 }
 
