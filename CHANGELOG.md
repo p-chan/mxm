@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.2](https://github.com/p-chan/mxm/compare/v0.6.1...v0.6.2)
+
+### Fixed
+
+- remove quarantine from the daemon copy ([#30](https://github.com/p-chan/mxm/pull/30))
+
 ## [v0.6.1](https://github.com/p-chan/mxm/compare/v0.6.0...v0.6.1)
 
 ### Fixed
