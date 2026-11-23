@@ -1,4 +1,4 @@
-//! mxm - Configuration tool for Logitech MX Master mice (HID++ 2.0)
+//! mxm - CLI and daemon for configuring Logitech MX Master mice, with Options+-style scrolling on macOS
 
 mod apply;
 mod config;
@@ -30,7 +30,7 @@ use hidpp::{FeatureCall, Hidpp, hex};
 #[command(
     name = "mxm",
     version,
-    about = "Configuration tool for Logitech MX Master mice (HID++ 2.0)"
+    about = "CLI and daemon for configuring Logitech MX Master mice, with Options+-style scrolling on macOS"
 )]
 struct Cli {
     /// Target device (number from 'list' or part of its name)

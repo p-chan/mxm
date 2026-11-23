@@ -2,7 +2,7 @@
 
 [English](README.md) | 日本語
 
-Logitech MX Master シリーズのマウスの設定を、HID++ 2.0 プロトコルで直接読み書きする CLI ツールです。MX Master 4 と MX Master 3S で動作を確認しています。Logi Options+ を使わずに DPI、SmartShift、ホイール、触覚フィードバック、ボタン割り当てなどを変更できます。
+mxm は、Logitech MX Master シリーズのマウスを HID++ 2.0 プロトコルで直接設定する CLI とデーモンです。Logi Options+ を使わずに DPI、SmartShift、ホイール、触覚フィードバック、ボタン割り当てなどを変更できます。設定ファイルに書いた設定は、一度だけ書き込むことも、マウスがつながるたびにデーモンに書き込ませることもできます。macOS では、`mxm service` でデーモンをログイン時に起動でき、デーモンは Logi Options+ と同じ加速でホイールをスクロールします。MX Master 4 と MX Master 3S で動作を確認しています。
 
 このプロジェクトは Logitech とは関係のない非公式のツールです。
 
