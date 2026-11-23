@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.0](https://github.com/p-chan/mxm/compare/v0.5.0...v0.6.0)
+
+### Added
+
+- add `mxm service update` to update the daemon after an update ([#25](https://github.com/p-chan/mxm/pull/25))
+
+### Other
+
+- open release PRs with a GitHub App token ([#24](https://github.com/p-chan/mxm/pull/24))
+
 ## [v0.5.0](https://github.com/p-chan/mxm/compare/v0.4.1...v0.5.0)
 
 ### Added
