@@ -147,12 +147,14 @@ tail -f ~/Library/Logs/mxm.log
 
 When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. [Software scrolling](#software-scrolling-macos) also needs the Accessibility permission for the same executable. macOS keeps the permission per executable path, and release binaries are signed with a Developer ID, so it carries over when `mxm service update` replaces the copy with an updated `mxm`, however you installed it (e.g. mise installs each version into a different directory).
 
-With [mise](https://mise.jdx.dev/), a `postinstall` command can update the daemon whenever mise installs a new version:
+With [mise](https://mise.jdx.dev/), a `postinstall` command can install the daemon, or update it, whenever mise installs a version:
 
 ```toml
 [tools]
-"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service update" }
+"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service install" }
 ```
+
+`mxm service install` writes the plist again each time, so add `--config <path>` to the command if you use one. To only update a daemon you installed yourself, use `mxm service update` instead.
 
 Other platforms are not supported by `mxm service` yet; run `mxm daemon` with your service manager (e.g. a systemd user service on Linux).
 
