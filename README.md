@@ -10,25 +10,50 @@ The results of the protocol analysis are documented in [PROTOCOL.md](PROTOCOL.md
 
 ## Requirements
 
-- macOS (Linux and Windows should work wherever [hidapi](https://crates.io/crates/hidapi) does, but are untested)
-- Rust (only when building from source)
+- macOS on Apple Silicon or Intel (Linux and Windows should work wherever [hidapi](https://crates.io/crates/hidapi) does, but are untested and have no prebuilt binaries)
 - An MX Master mouse connected via Bluetooth or a Logi Bolt receiver (tested on the MX Master 4 and MX Master 3S; features a model lacks, such as haptic feedback on the MX Master 3S, report an error)
 
 ## Installation
 
-Install the prebuilt binary for macOS (Apple Silicon or Intel) from [GitHub Releases](https://github.com/p-chan/mxm/releases):
+Prebuilt binaries for macOS are signed with a Developer ID and notarized by Apple. Install them with one of the following.
+
+### Homebrew
+
+```sh
+brew tap p-chan/tap
+brew trust --tap p-chan/tap   # once; Homebrew loads casks only from taps you trust
+brew install --cask mxm
+```
+
+Update with `brew upgrade --cask mxm`. If you [run the daemon at login](#starting-at-login-macos), the upgrade updates it too.
+
+### mise
+
+```sh
+mise use -g github:p-chan/mxm
+```
+
+To run the daemon at login and update it with mise, see [Starting at login](#starting-at-login-macos).
+
+### Install script
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/p-chan/mxm/releases/latest/download/mxm-installer.sh | sh   # installs to ~/.local/bin/mxm
 ```
 
-Run the same command again to update. To build from source instead:
+Run the same command again to update.
+
+### From source
+
+With [Rust](https://www.rust-lang.org/tools/install) installed:
 
 ```sh
+git clone https://github.com/p-chan/mxm.git
+cd mxm
 cargo install --path .   # installs to ~/.cargo/bin/mxm
 ```
 
-You can also run it without installing via `cargo run -- <command>`.
+A binary you build is not signed with the Developer ID, so macOS forgets the Input Monitoring and Accessibility permissions of the daemon each time you rebuild it. You can also run it without installing via `cargo run -- <command>`.
 
 ## Development
 
@@ -155,6 +180,8 @@ With [mise](https://mise.jdx.dev/), a `postinstall` command can install the daem
 ```
 
 `mxm service install` writes the plist again each time, so add `--config <path>` to the command if you use one. To only update a daemon you installed yourself, use `mxm service update` instead.
+
+With the Homebrew cask, `brew upgrade --cask mxm` runs `mxm service update` for you.
 
 Other platforms are not supported by `mxm service` yet; run `mxm daemon` with your service manager (e.g. a systemd user service on Linux).
 

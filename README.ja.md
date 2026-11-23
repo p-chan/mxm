@@ -10,25 +10,50 @@ mxm は、Logitech MX Master シリーズのマウスを HID++ 2.0 プロトコ�
 
 ## 動作環境
 
-- macOS（Linux / Windows でも [hidapi](https://crates.io/crates/hidapi) が動けば動作する見込みですが未検証です）
-- Rust（ソースからビルドするときのみ）
+- Apple Silicon または Intel の macOS（Linux / Windows でも [hidapi](https://crates.io/crates/hidapi) が動けば動作する見込みですが、未検証で、ビルド済みバイナリもありません）
 - MX Master シリーズのマウスを Bluetooth または Logi Bolt レシーバーで接続（動作確認は MX Master 4 と MX Master 3S。MX Master 3S の触覚フィードバックのように機種にない機能は、エラーになります）
 
 ## セットアップ
 
-[GitHub Releases](https://github.com/p-chan/mxm/releases) から、macOS（Apple Silicon / Intel）向けのビルド済みバイナリをインストールします。
+macOS 向けのビルド済みバイナリは、Developer ID で署名し、Apple の公証を受けています。次のどれかでインストールします。
+
+### Homebrew
+
+```sh
+brew tap p-chan/tap
+brew trust --tap p-chan/tap   # 初回だけ。Homebrew は信頼した tap の cask だけを読み込む
+brew install --cask mxm
+```
+
+`brew upgrade --cask mxm` でアップデートします。[daemon をログイン時に起動](#ログイン時に起動するmacos)している場合は、daemon もあわせて更新されます。
+
+### mise
+
+```sh
+mise use -g github:p-chan/mxm
+```
+
+daemon をログイン時に起動して、mise で更新するときは、[ログイン時に起動する](#ログイン時に起動するmacos)を参照してください。
+
+### インストールスクリプト
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/p-chan/mxm/releases/latest/download/mxm-installer.sh | sh   # ~/.local/bin/mxm にインストール
 ```
 
-アップデートするときも、同じコマンドを実行します。ソースからビルドする場合は次のとおりです。
+アップデートするときも、同じコマンドを実行します。
+
+### ソースからビルド
+
+[Rust](https://www.rust-lang.org/ja/tools/install) をインストールしたうえで、次を実行します。
 
 ```sh
+git clone https://github.com/p-chan/mxm.git
+cd mxm
 cargo install --path .   # ~/.cargo/bin/mxm にインストール
 ```
 
-インストールせずに `cargo run -- <command>` でも実行できます。
+自分でビルドしたバイナリは Developer ID で署名されていないので、ビルドし直すたびに、daemon の入力監視とアクセシビリティの権限が外れます。インストールせずに `cargo run -- <command>` でも実行できます。
 
 ## 開発
 
@@ -155,6 +180,8 @@ launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには
 ```
 
 `mxm service install` は毎回 plist を書き直すので、`--config <path>` を使うときはこのコマンドにも付けてください。自分で登録した daemon を更新するだけにしたいときは、代わりに `mxm service update` を使います。
+
+Homebrew の cask で入れた場合は、`brew upgrade --cask mxm` が `mxm service update` を実行します。
 
 macOS 以外では、まだ `mxm service` に対応していません。`mxm daemon` を各 OS のサービス管理（Linux なら systemd のユーザーサービスなど）から起動してください。
 
