@@ -25,6 +25,8 @@ macos-sign = true
 github-build-setup = "../build-setup.yml"
 # Notarize the macOS binaries. The release is only published if it succeeds
 global-artifacts-jobs = ["./notarize"]
+# Ask the Homebrew tap to bump its cask once the release is published
+post-announce-jobs = ["./bump-tap"]
 
 # Pin the GitHub Actions used by the generated workflow to commit SHAs
 [dist.github-action-commits]
