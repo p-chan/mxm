@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.5.0](https://github.com/p-chan/mxm/compare/v0.4.1...v0.5.0)
+
+### Added
+
+- notarize macOS release binaries ([#22](https://github.com/p-chan/mxm/pull/22))
+
+### Other
+
+- describe mxm as a CLI and daemon with Options+-style scrolling ([#21](https://github.com/p-chan/mxm/pull/21))
+
 ## [v0.4.1](https://github.com/p-chan/mxm/compare/v0.4.0...v0.4.1)
 
 ### Fixed
