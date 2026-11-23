@@ -155,6 +155,12 @@ enum ServiceAction {
         #[arg(long)]
         print: bool,
     },
+    /// Update the daemon to this `mxm`, keeping its config
+    ///
+    /// Replaces the copy that the service runs with this `mxm` and restarts it, without rewriting
+    /// the service definition. Does nothing if the service is not installed, so that package
+    /// managers can run it after every update.
+    Update,
     /// Stop `mxm daemon` and unregister it
     Uninstall,
     /// Show whether `mxm daemon` is registered and running
@@ -222,6 +228,7 @@ impl App {
             Command::Service { action } => {
                 return match action {
                     ServiceAction::Install { config, print } => service::install(config, print),
+                    ServiceAction::Update => service::update(),
                     ServiceAction::Uninstall => service::uninstall(),
                     ServiceAction::Status => service::status(),
                 };

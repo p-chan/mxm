@@ -6,7 +6,7 @@
 //! The LaunchAgent runs a copy of `mxm` at a fixed path, not the `mxm` that installed it. macOS
 //! keeps the Input Monitoring permission per executable path (and checks the code signature), so
 //! the permission would be lost whenever the path changes, e.g. when mise installs a new version
-//! into a versioned directory. Running `mxm service install` again after an update replaces the
+//! into a versioned directory. Running `mxm service update` after updating `mxm` replaces the
 //! copy at the same path, and the permission carries over.
 
 use std::path::{Path, PathBuf};
@@ -178,6 +178,21 @@ mod platform {
         bail!("mxm daemon did not stop within 5 seconds")
     }
 
+    /// Stops the daemon if it is loaded, and starts it again from the plist at `path`
+    fn reload(domain: &str, path: &Path) -> Result<()> {
+        if is_loaded(domain)? {
+            bootout(domain)?;
+        }
+        let out = launchctl(&["bootstrap", domain, &path.display().to_string()])?;
+        if !out.status.success() {
+            bail!(
+                "launchctl bootstrap failed: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Ok(())
+    }
+
     pub fn print(config: Option<PathBuf>) -> Result<()> {
         let plist = plist(&daemon_exe()?, config.as_deref(), &log_path()?);
         write!(std::io::stdout().lock(), "{plist}")?;
@@ -198,16 +213,7 @@ mod platform {
         std::fs::write(&path, plist(&exe, config.as_deref(), &log))
             .with_context(|| format!("Cannot write {}", path.display()))?;
         // Reload so that the new copy and config take effect
-        if is_loaded(&domain)? {
-            bootout(&domain)?;
-        }
-        let out = launchctl(&["bootstrap", &domain, &path.display().to_string()])?;
-        if !out.status.success() {
-            bail!(
-                "launchctl bootstrap failed: {}",
-                String::from_utf8_lossy(&out.stderr).trim()
-            );
-        }
+        reload(&domain, &path)?;
         let mut out = std::io::stdout().lock();
         writeln!(out, "Installed {} and started mxm daemon", path.display())?;
         writeln!(out, "Daemon: {}", exe.display())?;
@@ -229,8 +235,39 @@ mod platform {
         )?;
         writeln!(
             out,
-            "After updating mxm, run `mxm service install` again to update the daemon."
+            "After updating mxm, run `mxm service update` to update the daemon."
         )?;
+        Ok(())
+    }
+
+    pub fn update() -> Result<()> {
+        let path = plist_path()?;
+        let mut out = std::io::stdout().lock();
+        // Package managers run this after every install, so do nothing for users who do not use
+        // the service
+        if !path.exists() {
+            writeln!(out, "mxm service is not installed; nothing to update")?;
+            return Ok(());
+        }
+        let exe = daemon_exe()?;
+        if is_outdated(&exe) == Some(false) {
+            writeln!(out, "mxm daemon is already up to date: {}", exe.display())?;
+            return Ok(());
+        }
+        // Keep the plist, so that the config path given to `mxm service install` (or a plist
+        // managed with `--print`) stays as it is
+        copy_self(&exe)?;
+        let domain = domain()?;
+        if is_loaded(&domain)? {
+            reload(&domain, &path)?;
+            writeln!(out, "Updated {} and restarted mxm daemon", exe.display())?;
+        } else {
+            writeln!(out, "Updated {}", exe.display())?;
+            writeln!(
+                out,
+                "mxm daemon is not loaded; run `mxm service install` to start it"
+            )?;
+        }
         Ok(())
     }
 
@@ -304,7 +341,7 @@ mod platform {
         } else if is_outdated(&exe) == Some(true) {
             writeln!(
                 stdout,
-                "           differs from this mxm (run `mxm service install` to update)"
+                "           differs from this mxm (run `mxm service update`)"
             )?;
         }
         writeln!(stdout, "Log:       {}", log_path()?.display())?;
@@ -330,6 +367,9 @@ mod platform {
     pub fn install(_: Option<PathBuf>) -> Result<()> {
         unsupported()
     }
+    pub fn update() -> Result<()> {
+        unsupported()
+    }
     pub fn uninstall() -> Result<()> {
         unsupported()
     }
@@ -345,6 +385,10 @@ pub fn install(config: Option<PathBuf>, print_only: bool) -> Result<()> {
     } else {
         platform::install(config)
     }
+}
+
+pub fn update() -> Result<()> {
+    platform::update()
 }
 
 pub fn uninstall() -> Result<()> {

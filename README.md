@@ -137,20 +137,21 @@ Like Logi Options+, `mxm daemon` diverts the wheels to HID++ and posts the scrol
 
 ```sh
 mxm service install       # register mxm daemon as a LaunchAgent and start it (and at every login)
+mxm service update        # update the daemon to this mxm after updating mxm
 mxm service status        # whether it is registered and running
 mxm service uninstall     # stop and unregister it
 tail -f ~/Library/Logs/mxm.log
 ```
 
-`mxm service install` copies the running `mxm` to `~/Library/Application Support/mxm/mxm` and writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` that runs the copy. Run it again after updating `mxm` to update the copy (`mxm service status` tells when the copy is missing or differs from the `mxm` you run). The config path is fixed when you run it (the default `~/.config/mxm/config.toml`, or `$XDG_CONFIG_HOME/mxm/config.toml` if it is set, unless `--config <path>` is given); run it again after changing it. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead; it runs the copy at the path above, which `--print` does not create.
+`mxm service install` copies the running `mxm` to `~/Library/Application Support/mxm/mxm` and writes `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` that runs the copy. After updating `mxm`, run `mxm service update` to replace the copy and restart the daemon (`mxm service status` tells when the copy is missing or differs from the `mxm` you run). `mxm service update` keeps the plist as it is, and does nothing if the service is not installed. The config path is fixed when you run it (the default `~/.config/mxm/config.toml`, or `$XDG_CONFIG_HOME/mxm/config.toml` if it is set, unless `--config <path>` is given); run it again after changing it. To manage the plist yourself (e.g. in dotfiles), print it with `mxm service install --print` instead; it runs the copy at the path above, which `--print` does not create.
 
-When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. [Software scrolling](#software-scrolling-macos) also needs the Accessibility permission for the same executable. macOS keeps the permission per executable path, and release binaries are signed with a Developer ID, so it carries over when `mxm service install` replaces the copy with an updated `mxm`, however you installed it (e.g. mise installs each version into a different directory).
+When started by launchd, `mxm` needs the Input Monitoring permission to open mice connected over Bluetooth (the log shows `not permitted` without it). `mxm service install` shows the executable to add in System Settings → Privacy & Security → Input Monitoring. Mice behind a Logi Bolt receiver work without it. [Software scrolling](#software-scrolling-macos) also needs the Accessibility permission for the same executable. macOS keeps the permission per executable path, and release binaries are signed with a Developer ID, so it carries over when `mxm service update` replaces the copy with an updated `mxm`, however you installed it (e.g. mise installs each version into a different directory).
 
-With [mise](https://mise.jdx.dev/), a `postinstall` command can update the copy whenever mise installs a new version:
+With [mise](https://mise.jdx.dev/), a `postinstall` command can update the daemon whenever mise installs a new version:
 
 ```toml
 [tools]
-"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service install" }
+"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service update" }
 ```
 
 Other platforms are not supported by `mxm service` yet; run `mxm daemon` with your service manager (e.g. a systemd user service on Linux).

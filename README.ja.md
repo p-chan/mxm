@@ -137,20 +137,21 @@ mxm daemon                  # 常駐して、接続のたびに設定ファイ�
 
 ```sh
 mxm service install       # mxm daemon を LaunchAgent に登録して起動する（以降はログインのたびに起動）
+mxm service update        # mxm をアップデートしたあとに、daemon をこの mxm に更新する
 mxm service status        # 登録されているか、動いているか
 mxm service uninstall     # 止めて登録を解除する
 tail -f ~/Library/Logs/mxm.log
 ```
 
-`mxm service install` は、実行中の `mxm` を `~/Library/Application Support/mxm/mxm` にコピーし、そのコピーを起動する `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。`mxm` をアップデートしたら、もう一度実行してコピーを更新してください（コピーがないときや、手元の `mxm` と違うときは `mxm service status` が知らせます）。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ既定の `~/.config/mxm/config.toml`。`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）。設定ファイルのパスを変えたときも、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。書き出した plist は上のパスのコピーを起動しますが、`--print` はコピーを作りません。
+`mxm service install` は、実行中の `mxm` を `~/Library/Application Support/mxm/mxm` にコピーし、そのコピーを起動する `~/Library/LaunchAgents/io.github.p-chan.mxm.plist` を書き込みます。`mxm` をアップデートしたら、`mxm service update` を実行してコピーを置き換え、daemon を再起動してください（コピーがないときや、手元の `mxm` と違うときは `mxm service status` が知らせます）。`mxm service update` は plist を書き換えず、サービスを登録していなければ何もしません。設定ファイルのパスは実行した時点で決まります（`--config <path>` を付けなければ既定の `~/.config/mxm/config.toml`。`$XDG_CONFIG_HOME` があれば `$XDG_CONFIG_HOME/mxm/config.toml`）。設定ファイルのパスを変えたときも、もう一度実行してください。plist を自分で管理したいとき（dotfiles など）は、`mxm service install --print` で書き出せます。書き出した plist は上のパスのコピーを起動しますが、`--print` はコピーを作りません。
 
-launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。[ソフトウェアスクロール](#ソフトウェアスクロールmacos)には、同じ実行ファイルにアクセシビリティの権限も必要です。macOS は権限を実行ファイルのパスごとに管理します。リリースのバイナリは Developer ID で署名しているので、`mxm service install` がアップデートした `mxm` でコピーを置き換えても、権限は引き継がれます。インストール方法は問いません（たとえば mise はバージョンごとに別のディレクトリに入れます）。
+launchd から起動した `mxm` が Bluetooth 接続のマウスを開くには、入力監視の権限が必要です（ないとログに `not permitted` と出ます）。`mxm service install` が、システム設定 → プライバシーとセキュリティ → 入力監視 に追加すべき実行ファイルを表示します。Logi Bolt レシーバー経由のマウスは、権限がなくても動きます。[ソフトウェアスクロール](#ソフトウェアスクロールmacos)には、同じ実行ファイルにアクセシビリティの権限も必要です。macOS は権限を実行ファイルのパスごとに管理します。リリースのバイナリは Developer ID で署名しているので、`mxm service update` がアップデートした `mxm` でコピーを置き換えても、権限は引き継がれます。インストール方法は問いません（たとえば mise はバージョンごとに別のディレクトリに入れます）。
 
-[mise](https://mise.jdx.dev/) で入れるなら、`postinstall` を使うと、mise が新しいバージョンを入れるたびにコピーを更新できます。
+[mise](https://mise.jdx.dev/) で入れるなら、`postinstall` を使うと、mise が新しいバージョンを入れるたびに daemon を更新できます。
 
 ```toml
 [tools]
-"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service install" }
+"github:p-chan/mxm" = { version = "latest", postinstall = "mxm service update" }
 ```
 
 macOS 以外では、まだ `mxm service` に対応していません。`mxm daemon` を各 OS のサービス管理（Linux なら systemd のユーザーサービスなど）から起動してください。
