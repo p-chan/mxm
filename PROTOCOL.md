@@ -243,7 +243,9 @@ Options+ always diverts the thumb wheel too, and scrolls it with a 16.6 ms timer
 - `m = 2^(4 × percent / 100 - 1)` (0.5 at 0%, 8 at 100%); `rotation` is the last reported rotation.
 - A gesture starts with the first rotation and ends on status `3` (stop) or `0`, after one more event. A level `L` starts at 1; each new report raises it by `(1 - L) × 0.3`. After 7 ticks without a report it shrinks by ×0.15 per tick and the gesture ends below 0.01.
 - Each tick: `v = m × rotation × L / (360 × 0.0166)` inches/s; `smoothed` follows `v` at once when `|v|` is larger, else `0.99 × smoothed + 0.01 × v`; gain piecewise linear in `|smoothed|` through (0, 4), (0.3, 8), (20, 30), (100, 4); `pixels = gain × v × 100 × 0.0166`. At 100% one unit gives 20.4 px per tick (20-21 measured).
-- Options+ also posts a "swipe between pages" gesture from the thumb wheel and drops scroll events while that gesture dominates, which reduces scrolling at low speeds (about 15% at 0%). mxm does not post the gesture.
+- Options+ posts the thumb wheel like a horizontal trackpad scroll: each scroll event has a scroll phase (field 99: `1` on the first event, `2`, then `4` on the last), and is preceded by a "swipe between pages" gesture event (type 29, field 110 `6`) with the gesture phase in field 132. The gesture value (doubles 113, 114, 116, 118, and the same value as float bits in 115, 117, 164) starts at ±1 in the posted direction, and on each tick becomes `0.7 × value + 5/3 × units` with the rotation units reported since the previous tick (measured at 50%). Before the first value come a type 29 event with field 133 `4` and one with field 110 `61` (begin), and before the last scroll event one with field 110 `62` (end) and one with field 132 `4`; the begin and end events carry `6` in 115, 117 and 164. Gesture events have flag `0x100`. Without them, the thumb wheel felt much more sensitive in a browser than with Options+, while Finder felt the same. mxm posts the same events.
+- Options+ drops scroll events while the gesture dominates, which reduces scrolling at low speeds (about 15% at 0%). mxm does not.
+- The first report of a gesture can have the opposite sign of the rest.
 
 ### Posted events
 
@@ -251,7 +253,7 @@ Both wheels post continuous scroll events (`CGEventCreateScrollWheelEvent2` in p
 
 - Pixels (fields 96/97): the fraction of a pixel carries over to the next event, and the integer part (toward zero) is posted. No event is posted while it is 0. A thumb wheel gesture starts with no fraction.
 - Lines (fields 11/12) and fixed-point lines (93/94): the posted pixels and the wheel movement in inches add up per axis (reset when the direction changes). When an event moves 0.02 inch or more, or the movement adds up to more than 0.06 inch, the lines are the added pixels / 10 (truncated, at least ±1; the fixed-point value is rounded × 65536) and both sums start over; otherwise 0. In ratchet mode the main wheel movement counts in whole notches.
-- Scroll phase (99), momentum phase (123) and field 137 (`NSEvent.isDirectionInvertedFromDevice`) are 0.
+- Scroll phase (99) is 0 for the main wheel (see above for the thumb wheel). Momentum phase (123) and field 137 (`NSEvent.isDirectionInvertedFromDevice`) are 0.
 
 ## MX Master 3S
 

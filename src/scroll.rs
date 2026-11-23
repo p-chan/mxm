@@ -17,6 +17,9 @@ const DPI: f64 = 100.0;
 const THUMB_PERIOD: Duration = Duration::from_micros(16_600);
 /// Thumb wheel ticks without input before the scrolling slows down
 const THUMB_IDLE_TICKS: u32 = 7;
+/// Swipe gesture value added per unit of thumb wheel rotation, and kept per tick
+const SWIPE_PER_UNIT: f64 = 5.0 / 3.0;
+const SWIPE_DECAY: f64 = 0.7;
 
 /// Software scrolling settings of the main wheel
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -69,6 +72,11 @@ pub struct Motion {
     pub inches: f64,
     /// First event of a thumb wheel gesture
     pub begin: bool,
+    /// Last event of a thumb wheel gesture
+    pub end: bool,
+    /// Value of the "swipe between pages" gesture that accompanies the thumb wheel, in the
+    /// reported direction
+    pub swipe: Option<f64>,
 }
 
 /// Posts scroll events from a background thread
@@ -218,6 +226,8 @@ impl MainWheel {
                 pixels: finger * wheel_gain(self.smoothed, speed) * period * DPI,
                 inches: (inches_per_unit * f64::from(moved)).abs(),
                 begin: false,
+                end: false,
+                swipe: None,
             });
         }
         self.last = Some(at);
@@ -269,6 +279,9 @@ pub struct ThumbWheel {
     idle_ticks: u32,
     ending: bool,
     smoothed: f64,
+    swipe: f64,
+    /// Rotation reported since the last tick
+    pending: f64,
 }
 
 impl ThumbWheel {
@@ -299,6 +312,7 @@ impl ThumbWheel {
             self.idle_ticks = 0;
             // The status of the newest report counts (a new start cancels a pending stop)
             self.ending = stopping;
+            self.pending += f64::from(rotation);
             return None;
         }
         self.active = true;
@@ -306,6 +320,8 @@ impl ThumbWheel {
         self.idle_ticks = 0;
         self.ending = stopping;
         self.smoothed = 0.0;
+        self.swipe = f64::from(rotation.signum());
+        self.pending = 0.0;
         self.next_tick = Some(at + THUMB_PERIOD);
         Some(self.emit(true, false))
     }
@@ -324,6 +340,8 @@ impl ThumbWheel {
         } else {
             next
         });
+        self.swipe = SWIPE_DECAY * self.swipe + SWIPE_PER_UNIT * self.pending;
+        self.pending = 0.0;
         if self.ending {
             self.active = false;
             return Some(self.emit(false, true));
@@ -332,8 +350,15 @@ impl ThumbWheel {
         if self.idle_ticks >= THUMB_IDLE_TICKS {
             self.level *= 0.15;
             if self.level <= 0.01 {
+                // Ends the gesture without moving
                 self.active = false;
-                return None;
+                return Some(Motion {
+                    pixels: 0.0,
+                    inches: 0.0,
+                    begin: false,
+                    end: true,
+                    swipe: Some(self.swipe),
+                });
             }
         }
         Some(self.emit(false, false))
@@ -354,6 +379,8 @@ impl ThumbWheel {
             pixels: thumb_gain(self.smoothed.abs()) * v * DPI * period,
             inches: (v * period).abs(),
             begin,
+            end,
+            swipe: Some(self.swipe),
         }
     }
 }
@@ -369,6 +396,23 @@ fn thumb_gain(smoothed: f64) -> f64 {
 }
 
 // ---- Events ----
+
+/// Scroll phase of a posted event (`CGScrollPhase`)
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Phase {
+    None = 0,
+    Began = 1,
+    Changed = 2,
+    Ended = 4,
+}
+
+/// "Swipe between pages" gesture events, in the posted direction
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Gesture {
+    Begin(f64),
+    Change(f64),
+    End,
+}
 
 /// Values posted for one axis
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -437,6 +481,8 @@ struct Animator {
     thumb: ThumbWheel,
     vertical: Injector,
     horizontal: Injector,
+    /// A thumb wheel gesture has posted its first scroll event
+    horizontal_began: bool,
 }
 
 impl Animator {
@@ -489,14 +535,40 @@ impl Animator {
     // set on the device (`invert`)
     fn post_vertical(&mut self, m: Motion) {
         if let Some(p) = self.vertical.push(-m.pixels, m.inches, m.begin) {
-            platform::post_scroll(p, Posted::default());
+            platform::post_scroll(p, Posted::default(), Phase::None);
         }
     }
 
+    /// Posts the thumb wheel as Options+ does: a "swipe between pages" gesture event before each
+    /// scroll event, and scroll events with the phases of a trackpad scroll
     fn post_horizontal(&mut self, m: Motion) {
-        if let Some(p) = self.horizontal.push(-m.pixels, m.inches, m.begin) {
-            platform::post_scroll(Posted::default(), p);
+        if let Some(swipe) = m.swipe {
+            if m.begin {
+                platform::post_gesture(Gesture::Begin(-swipe));
+            } else if m.end {
+                platform::post_gesture(Gesture::End);
+            } else {
+                platform::post_gesture(Gesture::Change(-swipe));
+            }
         }
+        if m.begin {
+            self.horizontal_began = false;
+        }
+        let posted = self.horizontal.push(-m.pixels, m.inches, m.begin);
+        let phase = if m.end {
+            if !self.horizontal_began {
+                return;
+            }
+            Phase::Ended
+        } else if posted.is_none() {
+            return;
+        } else if self.horizontal_began {
+            Phase::Changed
+        } else {
+            Phase::Began
+        };
+        self.horizontal_began = !m.end;
+        platform::post_scroll(Posted::default(), posted.unwrap_or_default(), phase);
     }
 }
 
@@ -516,7 +588,7 @@ pub fn display_asleep() -> bool {
 mod platform {
     use std::ffi::c_void;
 
-    use super::Posted;
+    use super::{Gesture, Phase, Posted};
 
     pub const SUPPORTED: bool = true;
 
@@ -534,6 +606,18 @@ mod platform {
     const MOMENTUM_PHASE: u32 = 123;
     /// `NSEvent.isDirectionInvertedFromDevice`
     const DIRECTION_INVERTED: u32 = 137;
+    /// Gesture events (`NSEventTypeGesture`), as Options+ posts them for the thumb wheel. The
+    /// fields are undocumented; the values are copied from its events
+    const GESTURE_EVENT: u32 = 29;
+    const GESTURE_TYPE: u32 = 110;
+    const GESTURE_TYPE_SWIPE: i64 = 6;
+    const GESTURE_TYPE_BEGIN: i64 = 61;
+    const GESTURE_TYPE_END: i64 = 62;
+    const GESTURE_PHASE: u32 = 132;
+    const GESTURE_START: u32 = 133;
+    const GESTURE_VALUE_DOUBLES: [u32; 4] = [113, 114, 116, 118];
+    const GESTURE_VALUE_FLOATS: [u32; 3] = [115, 117, 164];
+    const GESTURE_FLAGS: u64 = 0x100;
 
     #[link(name = "CoreGraphics", kind = "framework")]
     unsafe extern "C" {
@@ -546,6 +630,11 @@ mod platform {
             wheel3: i32,
         ) -> CFTypeRef;
         fn CGEventSetIntegerValueField(event: CFTypeRef, field: u32, value: i64);
+        fn CGEventSetDoubleValueField(event: CFTypeRef, field: u32, value: f64);
+        fn CGEventCreate(source: *const c_void) -> CFTypeRef;
+        fn CGEventSetType(event: CFTypeRef, event_type: u32);
+        fn CGEventGetFlags(event: CFTypeRef) -> u64;
+        fn CGEventSetFlags(event: CFTypeRef, flags: u64);
         fn CGEventPost(tap: u32, event: CFTypeRef);
         fn CGRequestPostEventAccess() -> bool;
         fn CGMainDisplayID() -> u32;
@@ -569,7 +658,7 @@ mod platform {
     }
 
     /// Posts a continuous (pixel) scroll at the pointer. Positive: content moves down / right
-    pub fn post_scroll(vertical: Posted, horizontal: Posted) {
+    pub fn post_scroll(vertical: Posted, horizontal: Posted, phase: Phase) {
         unsafe {
             let e = CGEventCreateScrollWheelEvent2(
                 std::ptr::null(),
@@ -589,7 +678,7 @@ mod platform {
                 (FIXED_DELTA_AXIS_2, horizontal.fixed),
                 (POINT_DELTA_AXIS_1, vertical.pixels),
                 (POINT_DELTA_AXIS_2, horizontal.pixels),
-                (SCROLL_PHASE, 0),
+                (SCROLL_PHASE, phase as i32),
                 (MOMENTUM_PHASE, 0),
                 (DIRECTION_INVERTED, 0),
             ] {
@@ -597,6 +686,61 @@ mod platform {
             }
             CGEventPost(HID_EVENT_TAP, e);
             CFRelease(e);
+        }
+    }
+
+    /// Posts one gesture event with `fields`, and the gesture value when given
+    fn post_gesture_event(fields: &[(u32, i64)], value: Option<f64>) {
+        unsafe {
+            let e = CGEventCreate(std::ptr::null());
+            if e.is_null() {
+                return;
+            }
+            CGEventSetType(e, GESTURE_EVENT);
+            CGEventSetFlags(e, CGEventGetFlags(e) | GESTURE_FLAGS);
+            for &(field, v) in fields {
+                CGEventSetIntegerValueField(e, field, v);
+            }
+            if let Some(value) = value {
+                for field in GESTURE_VALUE_DOUBLES {
+                    CGEventSetDoubleValueField(e, field, value);
+                }
+                for field in GESTURE_VALUE_FLOATS {
+                    CGEventSetIntegerValueField(e, field, i64::from((value as f32).to_bits()));
+                }
+            }
+            CGEventPost(HID_EVENT_TAP, e);
+            CFRelease(e);
+        }
+    }
+
+    /// Posts the gesture events Options+ posts with the thumb wheel scrolling
+    pub fn post_gesture(gesture: Gesture) {
+        // Begin and end markers carry 6 in the value fields
+        let marker = |kind| {
+            let mut f = vec![(GESTURE_TYPE, kind)];
+            f.extend(GESTURE_VALUE_FLOATS.map(|field| (field, GESTURE_TYPE_SWIPE)));
+            f
+        };
+        match gesture {
+            Gesture::Begin(value) => {
+                post_gesture_event(&[(GESTURE_START, 4)], None);
+                post_gesture_event(&marker(GESTURE_TYPE_BEGIN), None);
+                post_gesture_event(
+                    &[(GESTURE_TYPE, GESTURE_TYPE_SWIPE), (GESTURE_PHASE, 1)],
+                    Some(value),
+                );
+            }
+            Gesture::Change(value) => post_gesture_event(
+                &[(GESTURE_TYPE, GESTURE_TYPE_SWIPE), (GESTURE_PHASE, 2)],
+                Some(value),
+            ),
+            Gesture::End => {
+                post_gesture_event(&marker(GESTURE_TYPE_END), None);
+                let mut f = vec![(GESTURE_TYPE, GESTURE_TYPE_SWIPE), (GESTURE_PHASE, 4)];
+                f.extend(GESTURE_VALUE_FLOATS.map(|field| (field, i64::from((-0.0f32).to_bits()))));
+                post_gesture_event(&f, None);
+            }
         }
     }
 
@@ -623,11 +767,13 @@ mod platform {
 
 #[cfg(not(target_os = "macos"))]
 mod platform {
-    use super::Posted;
+    use super::{Gesture, Phase, Posted};
 
     pub const SUPPORTED: bool = false;
 
-    pub fn post_scroll(_vertical: Posted, _horizontal: Posted) {}
+    pub fn post_scroll(_vertical: Posted, _horizontal: Posted, _phase: Phase) {}
+
+    pub fn post_gesture(_gesture: Gesture) {}
 
     pub fn has_permission(_prompt: bool) -> bool {
         false
@@ -731,7 +877,7 @@ mod tests {
         // Slows down after 7 idle ticks, then stops
         let mut n = 1;
         while let Some(at) = t.next_tick() {
-            if t.tick(at).is_none() {
+            if t.tick(at).is_some_and(|m| m.end) {
                 break;
             }
             n += 1;
@@ -776,6 +922,34 @@ mod tests {
     fn the_gain_stays_positive_past_the_curve() {
         let s = speed_setting(50);
         assert_eq!(wheel_gain(500.0, s), 1.0 + 5.0 * s);
+    }
+
+    #[test]
+    fn the_swipe_value_adds_the_rotation_and_decays() {
+        let mut t = ThumbWheel::default();
+        let t0 = Instant::now();
+        let scroll = ThumbScroll { speed: 50 };
+        assert_eq!(t.input(1, 1, t0, scroll).unwrap().swipe, Some(1.0));
+        t.input(1, 2, ms(t0, 5), scroll);
+        let m = t.tick(t.next_tick().unwrap()).unwrap();
+        assert!((m.swipe.unwrap() - (0.7 + 5.0 / 3.0)).abs() < 1e-9, "{m:?}");
+        let m = t.tick(t.next_tick().unwrap()).unwrap();
+        assert!(
+            (m.swipe.unwrap() - 0.7 * (0.7 + 5.0 / 3.0)).abs() < 1e-9,
+            "{m:?}"
+        );
+    }
+
+    #[test]
+    fn a_thumb_gesture_always_ends_with_an_end_event() {
+        let mut t = ThumbWheel::default();
+        let t0 = Instant::now();
+        t.input(1, 1, t0, ThumbScroll { speed: 50 });
+        let mut last = None;
+        while let Some(at) = t.next_tick() {
+            last = t.tick(at);
+        }
+        assert!(last.unwrap().end);
     }
 
     #[test]
