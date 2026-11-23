@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.3](https://github.com/p-chan/mxm/compare/v0.6.2...v0.6.3)
+
+### Fixed
+
+- post the thumb wheel with scroll phases and the swipe gesture like Options+ ([#34](https://github.com/p-chan/mxm/pull/34))
+
+### Other
+
+- lead the installation with Homebrew and mise ([#33](https://github.com/p-chan/mxm/pull/33))
+- ask the Homebrew tap to bump after a release ([#32](https://github.com/p-chan/mxm/pull/32))
+
 ## [v0.6.2](https://github.com/p-chan/mxm/compare/v0.6.1...v0.6.2)
 
 ### Fixed
