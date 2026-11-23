@@ -1,0 +1,69 @@
+# Called by release.yml (`global-artifacts-jobs` in dist-workspace.toml) after
+# the binaries are built and signed. The release is only published if every
+# macOS binary is accepted by Apple's notary service.
+name: Notarize
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+jobs:
+  notarize:
+    runs-on: macos-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: artifacts-build-local-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Notarize macOS binaries
+        env:
+          PLAN: ${{ inputs.plan }}
+          NOTARY_API_KEY: ${{ secrets.NOTARY_API_KEY }}
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
+        run: |
+          key="$RUNNER_TEMP/notary-api-key.p8"
+          set +x
+          printf '%s' "$NOTARY_API_KEY" > "$key"
+          set -x
+
+          # Each line is "<archive> <path of the executable inside it>"
+          jq -r '
+            .artifacts | to_entries[]
+            | select(.value.kind == "executable-zip")
+            | select(any(.value.target_triples[]; endswith("-apple-darwin")))
+            | .key as $archive
+            | .value.assets[] | select(.kind == "executable")
+            | "\($archive) \($archive | sub("\\.tar\\.xz$"; ""))/\(.path)"
+          ' <<< "$PLAN" > binaries.txt
+          test -s binaries.txt
+
+          while read -r archive binary <&3
+          do
+            tar -xf "artifacts/$archive"
+            codesign --verify --strict --verbose=2 "$binary"
+            # Notarization requires the Hardened Runtime
+            codesign --display --verbose "$binary" 2>&1 | grep -E '^CodeDirectory .*flags=.*\(runtime\)'
+
+            zip "$binary.zip" "$binary"
+            xcrun notarytool submit "$binary.zip" \
+              --key "$key" --key-id "$NOTARY_API_KEY_ID" --issuer "$NOTARY_API_ISSUER" \
+              --wait --timeout 1h --output-format json | tee result.json
+            id="$(jq -r .id result.json)"
+            status="$(jq -r .status result.json)"
+            xcrun notarytool log "$id" \
+              --key "$key" --key-id "$NOTARY_API_KEY_ID" --issuer "$NOTARY_API_ISSUER"
+            test "$status" = Accepted
+          done 3< binaries.txt
