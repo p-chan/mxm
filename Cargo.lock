@@ -243,6 +243,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "hidapi",
+ "libc",
  "serde",
  "serde_json",
  "toml",
